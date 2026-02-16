@@ -1,0 +1,81 @@
+[project]
+name = "dozi"
+version = "0.1.0"
+description = "AI-powered real-time conversation assistant for meetings, calls, and interviews"
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "AGPL-3.0-or-later" }
+dependencies = [
+    "fastapi>=0.129.0",
+    "uvicorn[standard]>=0.40.0",
+    "livekit>=1.0.25",
+    "livekit-api>=1.1.0",
+    "openai>=2.21.0",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "python-dotenv>=1.2.1",
+    "pyyaml>=6.0.3",
+]
+
+[dependency-groups]
+# Development tools (not published to PyPI)
+dev = [
+    "ruff>=0.15.1",
+    "ty>=0.0.17",
+    "pre-commit>=4.0.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade (modernize Python code)
+    "B",   # flake8-bugbear (catch common bugs)
+    "C4",  # flake8-comprehensions (better list/dict comprehensions)
+    "SIM", # flake8-simplify (simplification suggestions)
+    "RET", # flake8-return (better return statements)
+    "PTH", # flake8-use-pathlib (prefer pathlib over os.path)
+    "TCH", # flake8-type-checking (optimize type checking imports)
+]
+
+# Ignore specific rules that are too strict or conflict with formatters
+ignore = [
+    "B008",   # do not perform function calls in argument defaults (common in FastAPI)
+    "SIM108", # use ternary operator (sometimes if/else is clearer)
+]
+
+[tool.ruff.lint.pycodestyle]
+# Formatter wraps at 100, linter only flags lines >125
+max-line-length = 125
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can use magic values, assertions, and relative imports
+"tests/**/*.py" = ["PLR2004", "S101", "TID252"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+# Indent with spaces
+indent-style = "space"
+
+[tool.ty]
+
+[tool.ty.rules]
+# Fail builds on critical type errors, warn on everything else
+invalid-assignment = "error"  # Catch type mismatches
+unresolved-reference = "error"  # Catch undefined names
+all = "warn"  # Default for everything else
+
+[tool.ty.environment]
+python-version = "3.13"
+
+[tool.ty.src]
+include = ["src", "tests"]
+respect-ignore-files = true
