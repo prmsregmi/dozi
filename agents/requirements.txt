@@ -1,9 +1,3 @@
 # LiveKit Agent Dependencies
-# These are installed when deploying to LiveKit Cloud
-
-livekit>=1.0.25
-livekit-api>=1.1.0
-livekit-agents>=1.4.1
-livekit-plugins-openai>=1.4.1
-openai>=2.21.0
+livekit-agents[openai,silero]~=1.3
 python-dotenv>=1.2.1
