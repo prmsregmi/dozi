@@ -62,3 +62,8 @@ htmlcov/
 
 # LiveKit (auto-generated, contains credentials)
 livekit.toml
+
+# Temp files
+.temp/
+.tmp/
+.cache/
