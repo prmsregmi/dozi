@@ -1,10 +1,11 @@
-"""LiveKit Agent that transcribes audio with Whisper via VAD + StreamAdapter."""
+"""LiveKit Agent that transcribes audio with OpenAI STT + Silero VAD."""
 
 import asyncio
+import json
 import logging
+import traceback
 
-from livekit import agents, rtc
-from livekit.agents import AgentServer
+from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess
 from livekit.plugins import openai, silero
 
 logging.basicConfig(level=logging.INFO)
@@ -13,45 +14,73 @@ logger = logging.getLogger(__name__)
 server = AgentServer()
 
 
-@server.rtc_session()
-async def entrypoint(ctx: agents.JobContext):
-    await ctx.connect()
+def prewarm(proc: JobProcess):
+    proc.userdata["vad"] = silero.VAD.load(
+        min_speech_duration=0.1,
+        min_silence_duration=0.5,
+    )
+
+
+server.setup_fnc = prewarm
+
+
+async def publish_error(ctx: JobContext, error: Exception, source: str = "agent"):
+    """Publish an error to the frontend via the data channel."""
+    try:
+        payload = json.dumps(
+            {
+                "source": source,
+                "error": str(error),
+                "type": type(error).__name__,
+                "traceback": traceback.format_exception(error)[-3:],
+            }
+        )
+        await ctx.room.local_participant.publish_data(
+            payload.encode("utf-8"),
+            topic="agent_error",
+            reliable=True,
+        )
+    except Exception:
+        logger.exception("Failed to publish error to frontend")
+
+
+@server.rtc_session(agent_name="whisper-transcriber")
+async def entrypoint(ctx: JobContext):
+    ctx.log_context_fields = {"room": ctx.room.name}
     logger.info("Whisper agent joined room: %s", ctx.room.name)
 
-    @ctx.room.on("track_subscribed")
-    def on_track_subscribed(
-        track: rtc.Track,
-        publication: rtc.RemoteTrackPublication,
-        participant: rtc.RemoteParticipant,
-    ):
-        if track.kind == rtc.TrackKind.KIND_AUDIO:
-            asyncio.create_task(transcribe_track(ctx, track))
+    try:
+        session = AgentSession(
+            stt=openai.STT(model="gpt-4o-transcribe"),
+            vad=ctx.proc.userdata["vad"],
+        )
 
-    async def transcribe_track(ctx: agents.JobContext, track: rtc.Track):
-        whisper_stt = openai.STT(model="whisper-1")
-        vad = silero.VAD.load(min_speech_duration=0.1, min_silence_duration=0.5)
-        stt = agents.stt.StreamAdapter(whisper_stt, vad.stream())
-        stt_stream = stt.stream()
-        audio_stream = rtc.AudioStream(track)
-
-        async with asyncio.TaskGroup() as tg:
-            tg.create_task(publish_transcriptions(ctx, stt_stream))
-            async for event in audio_stream:
-                stt_stream.push_frame(event.frame)
-            stt_stream.end_input()
-
-    async def publish_transcriptions(ctx: agents.JobContext, stream: agents.stt.SpeechStream):
-        async for event in stream:
-            if event.type == agents.stt.SpeechEventType.FINAL_TRANSCRIPT:
-                text = event.alternatives[0].text.strip()
+        @session.on("user_input_transcribed")
+        def on_transcript(transcript):
+            if transcript.is_final:
+                text = transcript.transcript.strip()
                 if text:
                     logger.info("Transcription: %s", text)
-                    await ctx.room.local_participant.publish_data(
-                        text.encode("utf-8"),
-                        topic="transcription",
-                        reliable=True,
+                    asyncio.create_task(
+                        ctx.room.local_participant.publish_data(
+                            text.encode("utf-8"),
+                            topic="transcription",
+                            reliable=True,
+                        )
                     )
+
+        await session.start(
+            agent=Agent(instructions="You are a transcription assistant."),
+            room=ctx.room,
+        )
+        await ctx.connect()
+    except Exception as exc:
+        logger.exception("Agent entrypoint failed")
+        await publish_error(ctx, exc, source="entrypoint")
+        raise
 
 
 if __name__ == "__main__":
+    from livekit import agents
+
     agents.cli.run_app(server)
