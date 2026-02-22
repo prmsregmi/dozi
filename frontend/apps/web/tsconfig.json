@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@dozi/shared": ["../../packages/shared/src"],
+      "@dozi/shared/*": ["../../packages/shared/src/*"],
+      "@dozi/api-client": ["../../packages/api-client/src"],
+      "@dozi/api-client/*": ["../../packages/api-client/src/*"],
+      "@dozi/ui": ["../../packages/ui/src"],
+      "@dozi/ui/*": ["../../packages/ui/src/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "../../packages/shared/src/**/*",
+    "../../packages/api-client/src/**/*",
+    "../../packages/ui/src/**/*"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
