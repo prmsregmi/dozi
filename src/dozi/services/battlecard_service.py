@@ -67,7 +67,7 @@ class BattleCardService:
                 {"role": "system", "content": prompt.system_message},
                 {"role": "user", "content": user_message},
             ],
-            response_format={"type": prompt.metadata.model_params.response_format},
+            response_format={"type": prompt.metadata.model_params.response_format},  # type: ignore[invalid-argument-type]
             temperature=prompt.metadata.model_params.temperature,
         )
 

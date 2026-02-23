@@ -15,7 +15,7 @@ async def get_preferences(supabase: AsyncClient = Depends(get_supabase)):
     """Get user preferences. Creates default if doesn't exist."""
     result = await supabase.table("user_preferences").select("*").maybe_single().execute()
 
-    if not result.data:
+    if result is None or not result.data:
         result = await (
             supabase.table("user_preferences")
             .insert({"default_mode": "meeting", "settings": {}})

@@ -42,7 +42,7 @@ class ConversationRepository:
             .execute()
         )
 
-        if not result.data:
+        if result is None or not result.data:
             return None
 
         return ConversationResponse(**result.data)
