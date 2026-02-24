@@ -29,6 +29,7 @@ export default function SessionPage() {
   const error = useRoomStore((state) => state.error);
   const reset = useRoomStore((state) => state.reset);
   const isPublishing = useRoomStore((state) => state.isPublishing);
+  const agentReady = useRoomStore((state) => state.agentReady);
   const resetInsights = useInsightsStore((state) => state.reset);
   const setMode = useInsightsStore((state) => state.setMode);
 
@@ -37,17 +38,18 @@ export default function SessionPage() {
   const conversationTitle = sessionStorage.getItem('conversationTitle') || 'Session';
   const conversationMode = sessionStorage.getItem('conversationMode') || 'meeting';
 
-  // Duration timer
-  const startTimeRef = useRef(Date.now());
+  // Duration timer — starts when the agent is ready
+  const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
+    if (!agentReady) return;
     startTimeRef.current = Date.now();
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [agentReady]);
 
   // Sync conversation mode to insights store
   useEffect(() => {
@@ -69,10 +71,10 @@ export default function SessionPage() {
     serverUrl: serverUrl || '',
   });
 
-  // Publish audio
+  // Publish audio only after the agent has joined
   useAudioPublish({
     room,
-    enabled: connectionState === ConnectionState.CONNECTED,
+    enabled: connectionState === ConnectionState.CONNECTED && agentReady,
   });
 
   // Listen for transcriptions from the data channel
@@ -98,6 +100,18 @@ export default function SessionPage() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
           <p className="text-slate-600 text-sm">Connecting to session...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (connectionState === ConnectionState.CONNECTED && !agentReady) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-slate-600 text-sm">Waiting for transcription agent to join...</p>
+          <p className="text-slate-400 text-xs mt-1">Your microphone will activate once the agent is ready</p>
         </div>
       </div>
     );

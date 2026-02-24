@@ -1,9 +1,9 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { battlecardsApi } from '@dozi/api-client';
+import { battlecardsApi, preferencesApi } from '@dozi/api-client';
 import { useInsightsStore } from '../store/insightsStore';
 
-const TRANSCRIPT_BATCH_SIZE = 3;
-const GENERATION_INTERVAL_MS = 30_000;
+const DEFAULT_BATCH_SIZE = 3;
+const DEFAULT_INTERVAL_MS = 30_000;
 
 export function useBattleCardGenerator(conversationId: string | null) {
   const transcripts = useInsightsStore((state) => state.transcripts);
@@ -11,6 +11,24 @@ export function useBattleCardGenerator(conversationId: string | null) {
   const lastGenCountRef = useRef(0);
   const lastGenTimeRef = useRef(0);
   const generatingRef = useRef(false);
+  const batchSizeRef = useRef(DEFAULT_BATCH_SIZE);
+  const intervalMsRef = useRef(DEFAULT_INTERVAL_MS);
+  const settingsLoadedRef = useRef(false);
+
+  // Load user settings on mount
+  useEffect(() => {
+    preferencesApi
+      .get()
+      .then((prefs) => {
+        const s = prefs.settings;
+        if (s.transcript_batch_size) batchSizeRef.current = s.transcript_batch_size;
+        if (s.generation_interval_seconds) intervalMsRef.current = s.generation_interval_seconds * 1000;
+        settingsLoadedRef.current = true;
+      })
+      .catch(() => {
+        settingsLoadedRef.current = true;
+      });
+  }, []);
 
   const tryGenerate = useCallback(() => {
     const currentTranscripts = useInsightsStore.getState().transcripts;
@@ -19,8 +37,8 @@ export function useBattleCardGenerator(conversationId: string | null) {
     const newSinceLastGen = currentTranscripts.length - lastGenCountRef.current;
     const timeSinceLastGen = Date.now() - lastGenTimeRef.current;
     const shouldGenerate =
-      newSinceLastGen >= TRANSCRIPT_BATCH_SIZE ||
-      (newSinceLastGen > 0 && timeSinceLastGen >= GENERATION_INTERVAL_MS);
+      newSinceLastGen >= batchSizeRef.current ||
+      (newSinceLastGen > 0 && timeSinceLastGen >= intervalMsRef.current);
 
     if (!shouldGenerate) return;
 
@@ -44,7 +62,11 @@ export function useBattleCardGenerator(conversationId: string | null) {
         lastGenCountRef.current = currentTranscripts.length;
         lastGenTimeRef.current = Date.now();
       })
-      .catch((err) => console.error('[BattleCard] Generation failed:', err))
+      .catch((err) => {
+        console.error('[BattleCard] Generation failed:', err);
+        // Still update time so we don't immediately retry on failure
+        lastGenTimeRef.current = Date.now();
+      })
       .finally(() => {
         generatingRef.current = false;
       });
@@ -55,13 +77,13 @@ export function useBattleCardGenerator(conversationId: string | null) {
     tryGenerate();
   }, [transcripts.length, tryGenerate]);
 
-  // Timer-based trigger for the 30-second interval
+  // Timer-based trigger using user-configured interval
   useEffect(() => {
     if (!conversationId) return;
 
     const interval = setInterval(() => {
       tryGenerate();
-    }, GENERATION_INTERVAL_MS);
+    }, intervalMsRef.current);
 
     return () => clearInterval(interval);
   }, [conversationId, tryGenerate]);

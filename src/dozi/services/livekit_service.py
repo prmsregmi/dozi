@@ -26,19 +26,21 @@ class LiveKitService:
             )
         return self._lkapi
 
-    async def create_room(self, room_name: str) -> str:
+    async def create_room(self, room_name: str, metadata: str | None = None) -> str:
         """
         Create a LiveKit room.
 
         Args:
             room_name: Name of the room to create
+            metadata: Optional JSON metadata to attach to the room
 
         Returns:
             Room name
         """
-        room = await self.lkapi.room.create_room(
-            api.CreateRoomRequest(name=room_name),
-        )
+        request = api.CreateRoomRequest(name=room_name)
+        if metadata:
+            request.metadata = metadata
+        room = await self.lkapi.room.create_room(request)
         return room.name
 
     async def dispatch_agent(self, room_name: str, agent_name: str = "whisper-transcriber") -> None:

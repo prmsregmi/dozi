@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { initApiClient } from '@dozi/api-client';
 import HomePage from './pages/HomePage';
 import SessionPage from './pages/SessionPage';
+import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -24,6 +25,15 @@ function App() {
           element={
             <ProtectedRoute>
               <HomePage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
             </ProtectedRoute>
           }
         />

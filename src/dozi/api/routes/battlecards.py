@@ -9,7 +9,7 @@ from supabase import AsyncClient
 
 from ...auth import get_supabase
 from ...models.db_models import BattleCardCreate, BattleCardResponse
-from ...models.schemas import AssistMode
+from ...models.schemas import AssistMode, UserSettings
 from ...repositories import BattleCardRepository, ConversationRepository, TranscriptionRepository
 from ...services.battlecard_service import BattleCardService
 
@@ -47,8 +47,18 @@ async def generate_battlecard(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="No transcript available"
             )
 
+    # Load user settings for model/temperature/prompt overrides
+    user_settings: UserSettings | None = None
+    prefs_result = (
+        await supabase.table("user_preferences").select("settings").maybe_single().execute()
+    )
+    if prefs_result and prefs_result.data and prefs_result.data.get("settings"):
+        user_settings = UserSettings(**prefs_result.data["settings"])
+
     mode = AssistMode(conversation.mode)
-    battlecard = await battlecard_service.generate_battlecard(transcript, mode)
+    battlecard = await battlecard_service.generate_battlecard(
+        transcript, mode, user_settings=user_settings
+    )
 
     bc_repo = BattleCardRepository(supabase)
     return await bc_repo.create(

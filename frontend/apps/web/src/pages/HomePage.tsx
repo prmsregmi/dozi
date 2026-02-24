@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { conversationsApi, generateToken, type Conversation } from '@dozi/api-client';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, Phone, Briefcase, Clock } from 'lucide-react';
+import { LogOut, Users, Phone, Briefcase, Clock, Settings } from 'lucide-react';
 
 const MODE_CARDS: Array<{
   mode: 'meeting' | 'call' | 'interview';
@@ -118,6 +118,13 @@ export default function HomePage() {
             {user && (
               <span className="text-sm text-slate-600">{user.email}</span>
             )}
+            <button
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              Settings
+            </button>
             <button
               onClick={signOut}
               className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"

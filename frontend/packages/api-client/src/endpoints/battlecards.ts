@@ -20,7 +20,9 @@ export interface GenerateBattleCardRequest {
 
 export const battlecardsApi = {
   generate: async (data: GenerateBattleCardRequest): Promise<BattleCard> => {
-    const response = await apiClient.post('/battlecards/generate', data);
+    const response = await apiClient.post('/battlecards/generate', data, {
+      timeout: 60000, // LLM generation can take longer than default
+    });
     return response.data;
   },
 

@@ -22,7 +22,7 @@ export function createApiClient(supabaseClient?: SupabaseClient): AxiosInstance 
     headers: {
       'Content-Type': 'application/json',
     },
-    timeout: 10000, // 10 seconds
+    timeout: 30000, // 30 seconds
   });
 
   // Request interceptor for auth and logging

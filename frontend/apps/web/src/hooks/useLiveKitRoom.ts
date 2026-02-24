@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useCallback, useRef } from 'react';
-import { Room, RoomEvent, ConnectionState as LKConnectionState } from 'livekit-client';
+import { Room, RoomEvent, ConnectionState as LKConnectionState, RemoteParticipant } from 'livekit-client';
 import { useRoomStore, ConnectionState } from '../store/roomStore';
 
 interface UseLiveKitRoomParams {
@@ -21,7 +21,7 @@ export function useLiveKitRoom({
   onDisconnected,
   onError,
 }: UseLiveKitRoomParams) {
-  const { room, setRoom, setConnectionState, setError } = useRoomStore();
+  const { room, setRoom, setConnectionState, setError, setAgentReady } = useRoomStore();
   // Use a ref to track the current room so connect/disconnect don't have
   // stale closures — this also prevents double-connect issues.
   const roomRef = useRef<Room | null>(null);
@@ -50,6 +50,21 @@ export function useLiveKitRoom({
           onConnected?.();
         } else if (state === LKConnectionState.Disconnected) {
           onDisconnected?.();
+        }
+      });
+
+      r.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
+        // Agent identities start with "agent-"
+        if (participant.identity.startsWith('agent-')) {
+          console.log('[LiveKit] Agent joined:', participant.identity);
+          setAgentReady(true);
+        }
+      });
+
+      r.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+        if (participant.identity.startsWith('agent-')) {
+          console.log('[LiveKit] Agent left:', participant.identity);
+          setAgentReady(false);
         }
       });
 
@@ -105,6 +120,15 @@ export function useLiveKitRoom({
       setConnectionState(ConnectionState.CONNECTED);
       setError(null);
       console.log('[LiveKit] Connected to room:', newRoom.name, '| participants:', newRoom.remoteParticipants.size);
+
+      // Check if agent is already in the room
+      for (const [, participant] of newRoom.remoteParticipants) {
+        if (participant.identity.startsWith('agent-')) {
+          console.log('[LiveKit] Agent already present:', participant.identity);
+          setAgentReady(true);
+          break;
+        }
+      }
 
       onConnected?.();
     } catch (err) {

@@ -50,9 +50,37 @@ async def entrypoint(ctx: JobContext):
     logger.info("Whisper agent joined room: %s", ctx.room.name)
 
     try:
+        # Read STT config from room metadata
+        stt_model = "gpt-4o-transcribe"
+        vad = ctx.proc.userdata["vad"]
+
+        room_metadata = ctx.room.metadata
+        if room_metadata:
+            try:
+                meta = json.loads(room_metadata)
+                if meta.get("stt_model"):
+                    stt_model = meta["stt_model"]
+                    logger.info("Using STT model from settings: %s", stt_model)
+
+                # Recreate VAD with custom params if provided
+                min_silence = meta.get("min_silence_duration")
+                min_speech = meta.get("min_speech_duration")
+                if min_silence is not None or min_speech is not None:
+                    vad = silero.VAD.load(
+                        min_speech_duration=min_speech if min_speech is not None else 0.1,
+                        min_silence_duration=min_silence if min_silence is not None else 0.5,
+                    )
+                    logger.info(
+                        "Using custom VAD params: min_speech=%.2f, min_silence=%.2f",
+                        min_speech or 0.1,
+                        min_silence or 0.5,
+                    )
+            except (json.JSONDecodeError, KeyError):
+                logger.warning("Failed to parse room metadata, using defaults")
+
         session = AgentSession(
-            stt=openai.STT(model="gpt-4o-transcribe"),
-            vad=ctx.proc.userdata["vad"],
+            stt=openai.STT(model=stt_model),
+            vad=vad,
         )
 
         @session.on("user_input_transcribed")

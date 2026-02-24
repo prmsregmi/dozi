@@ -4,7 +4,7 @@ import json
 
 from openai import AsyncOpenAI
 
-from ..models.schemas import AssistMode, BattleCard, Insight
+from ..models.schemas import AssistMode, BattleCard, Insight, PromptOverride, UserSettings
 from ..prompts.loader import prompt_loader
 from ..prompts.models import Prompt
 from ..settings import settings
@@ -17,19 +17,30 @@ class BattleCardService:
         """Initialize the battle card service with OpenAI."""
         self.openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    async def generate_battlecard(self, transcript: str, mode: AssistMode) -> BattleCard:
+    async def generate_battlecard(
+        self, transcript: str, mode: AssistMode, user_settings: UserSettings | None = None
+    ) -> BattleCard:
         """
         Generate a battle card from a transcript.
 
         Args:
             transcript: The conversation transcript
             mode: The assistance mode (meeting, call, interview)
+            user_settings: Optional user settings for model/temp/prompt overrides
 
         Returns:
             BattleCard with insights and recommendations
         """
         prompt_config = prompt_loader.get_prompt(mode)
-        response = await self._generate_with_openai(prompt_config, transcript)
+
+        # Apply prompt overrides if present
+        prompt_override: PromptOverride | None = None
+        if user_settings and user_settings.prompt_overrides:
+            prompt_override = user_settings.prompt_overrides.get(mode.value)
+
+        response = await self._generate_with_openai(
+            prompt_config, transcript, user_settings=user_settings, prompt_override=prompt_override
+        )
 
         # Parse JSON response
         try:
@@ -57,18 +68,38 @@ class BattleCardService:
                 recommendations=[],
             )
 
-    async def _generate_with_openai(self, prompt: Prompt, transcript: str) -> str:
+    async def _generate_with_openai(
+        self,
+        prompt: Prompt,
+        transcript: str,
+        user_settings: UserSettings | None = None,
+        prompt_override: PromptOverride | None = None,
+    ) -> str:
         """Generate response using OpenAI with prompt configuration."""
         user_message = prompt.format(transcript=transcript)
+        system_message = prompt.system_message
+
+        # Apply prompt overrides
+        if prompt_override:
+            if prompt_override.user_message is not None:
+                user_message = prompt_override.user_message.replace("{transcript}", transcript)
+            if prompt_override.system_message is not None:
+                system_message = prompt_override.system_message
+
+        # Use user settings for model and temperature, or fall back to defaults
+        model = user_settings.llm_model if user_settings else settings.llm_model
+        temperature = (
+            user_settings.temperature if user_settings else prompt.metadata.model_params.temperature
+        )
 
         response = await self.openai_client.chat.completions.create(
-            model=settings.llm_model,
+            model=model,
             messages=[
-                {"role": "system", "content": prompt.system_message},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
             ],
             response_format={"type": prompt.metadata.model_params.response_format},  # type: ignore[invalid-argument-type]
-            temperature=prompt.metadata.model_params.temperature,
+            temperature=temperature,
         )
 
         return response.choices[0].message.content or ""

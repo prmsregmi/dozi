@@ -42,3 +42,28 @@ class BattleCard(BaseModel):
     insights: list[Insight] = Field(default_factory=list, description="List of insights")
     summary: str = Field(..., description="Overall summary of the conversation so far")
     recommendations: list[str] = Field(default_factory=list, description="Action recommendations")
+
+
+class PromptOverride(BaseModel):
+    """Per-mode prompt override. None values mean use the default YAML prompt."""
+
+    system_message: str | None = None
+    user_message: str | None = None
+
+
+class UserSettings(BaseModel):
+    """User-configurable settings stored in the user_preferences JSONB column."""
+
+    # Transcription
+    stt_model: str = "gpt-4o-transcribe"
+    min_silence_duration: float = Field(default=0.5, ge=0.2, le=1.0)
+    min_speech_duration: float = Field(default=0.1, ge=0.05, le=0.5)
+
+    # Battle card generation
+    llm_model: str = "gpt-5.2"
+    transcript_batch_size: int = Field(default=3, ge=1, le=10)
+    generation_interval_seconds: int = Field(default=30, ge=5, le=120)
+    temperature: float = Field(default=0.3, ge=0.0, le=1.0)
+
+    # Prompt overrides (per mode) — None means use default YAML
+    prompt_overrides: dict[str, PromptOverride] | None = None

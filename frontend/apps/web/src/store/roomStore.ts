@@ -21,6 +21,9 @@ interface RoomState {
   error: string | null;
   livekitUrl: string | null;
 
+  // Agent state
+  agentReady: boolean;
+
   // Audio state
   audioTrack: LocalAudioTrack | null;
   isMuted: boolean;
@@ -32,6 +35,7 @@ interface RoomState {
   setConnectionState: (state: ConnectionState) => void;
   setError: (error: string | null) => void;
   setLivekitUrl: (url: string) => void;
+  setAgentReady: (ready: boolean) => void;
   setAudioTrack: (track: LocalAudioTrack | null) => void;
   setMuted: (muted: boolean) => void;
   setPublishing: (publishing: boolean) => void;
@@ -45,6 +49,7 @@ const initialState = {
   connectionState: ConnectionState.DISCONNECTED,
   error: null,
   livekitUrl: null,
+  agentReady: false,
   audioTrack: null,
   isMuted: false,
   isPublishing: false,
@@ -62,6 +67,8 @@ export const useRoomStore = create<RoomState>((set, get) => ({
   setError: (error) => set({ error }),
 
   setLivekitUrl: (url) => set({ livekitUrl: url }),
+
+  setAgentReady: (ready) => set({ agentReady: ready }),
 
   setAudioTrack: (track) => set({ audioTrack: track }),
 
