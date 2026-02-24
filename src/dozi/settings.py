@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     app_name: str = "Dozi"
     app_version: str = "0.1.0"
     debug: bool = False
+    granular_settings: bool = True
 
 
 settings = Settings()  # type: ignore[call-arg]

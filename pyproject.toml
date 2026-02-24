@@ -78,6 +78,7 @@ all = "warn"  # Default for everything else
 
 [tool.ty.environment]
 python-version = "3.13"
+python = ".venv"
 
 [tool.ty.src]
 include = ["src", "tests"]

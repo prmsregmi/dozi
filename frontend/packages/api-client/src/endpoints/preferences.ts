@@ -29,7 +29,16 @@ export interface PromptTemplate {
   user_message: string;
 }
 
+export interface AppConfig {
+  granular_settings: boolean;
+}
+
 export const preferencesApi = {
+  getConfig: async (): Promise<AppConfig> => {
+    const response = await apiClient.get('/preferences/config');
+    return response.data;
+  },
+
   get: async (): Promise<UserPreferences> => {
     const response = await apiClient.get('/preferences/');
     return response.data;

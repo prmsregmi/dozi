@@ -8,6 +8,7 @@ from ...auth import AuthenticatedUser, get_current_user, get_supabase
 from ...models.db_models import UserPreferencesResponse, UserPreferencesUpdate
 from ...models.schemas import AssistMode
 from ...prompts.loader import prompt_loader
+from ...settings import settings
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 
@@ -54,6 +55,12 @@ async def update_preferences(
     )
 
     return UserPreferencesResponse(**result.data[0])
+
+
+@router.get("/config")
+async def get_config():
+    """Return app-level configuration flags."""
+    return {"granular_settings": settings.granular_settings}
 
 
 @router.get("/prompt-defaults")
