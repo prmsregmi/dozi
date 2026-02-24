@@ -1,27 +1,28 @@
 # Dozi
 
-AI-powered sales conversation assistant that provides real-time transcription and insights during calls, meetings, and interviews.
+AI-powered sales conversation assistant that provides real-time insights during calls, meetings, and interviews.
 
 ## Architecture
 
 ```
-Frontend → LiveKit Cloud ← Transcription Agent
-    ↓ (gets transcription)
-    ↓ (HTTP API call)
-FastAPI Backend → Generates insights → Returns via HTTP
-    ↓
-Supabase (auth + data)
+Frontend → LiveKit Cloud ← Transcription Agent (STT via Deepgram/OpenAI)
+               ↓
+    Frontend polls for transcripts
+               ↓ (HTTP)
+    LLM Service (FastAPI) → Generates battle cards → Returns via HTTP
+               ↓
+    Supabase (auth + data)
 ```
 
-Frontend connects to LiveKit, receives transcriptions from the transcription agent, sends them to the backend API for processing, and displays returned insights.
+The **LLM Service** is stateless — it handles battle card generation only. The **Transcription Agent** runs in LiveKit Cloud and handles all STT. The frontend wires them together.
 
 ## Tech Stack
 
-- **Backend**: FastAPI, Python 3.13+, uv
+- **LLM Service**: FastAPI, Python 3.13+, uv
 - **Frontend**: React 18, TypeScript, Vite, pnpm
 - **Database**: Supabase (PostgreSQL + Auth)
 - **Audio/Transcription**: LiveKit Cloud, Deepgram Nova-3 (streaming STT)
-- **AI**: Groq (battle cards), OpenAI GPT (fallback)
+- **AI**: Groq (battle cards), OpenAI (fallback)
 
 ## Setup
 
@@ -35,27 +36,28 @@ npx supabase link
 npx supabase db push
 ```
 
-### 2. Backend
+### 2. LLM Service
 
 ```bash
+cd llm_service
 cp .env.example .env
-# Fill in: OPENAI_API_KEY, LIVEKIT_*, SUPABASE_* values from step 1
+# Fill in: OPENAI_API_KEY, LIVEKIT_*, AUTH_JWKS_URL values
 ```
 
 **Option A: Direct (recommended for development)**
 
 ```bash
 uv sync
-uv run uvicorn src.dozi.main:app --reload
+PYTHONPATH=. uv run uvicorn llm_service.main:app --reload
 ```
 
 **Option B: Docker**
 
 ```bash
-docker compose up -d --build
+docker compose up -d --build   # from llm_service/
 ```
 
-Backend runs at `http://localhost:8000`
+LLM service runs at `http://localhost:8000`
 
 ### 3. Transcription Agent
 
@@ -96,45 +98,43 @@ Frontend runs at `http://localhost:5173`
 
 ```
 dozi/
-├── agents/          # LiveKit transcription agent (Deepgram/OpenAI)
-├── src/dozi/        # FastAPI backend
-│   ├── api/routes/  # API endpoints
-│   ├── models/      # Data models & schemas
-│   ├── prompts/     # LLM prompt templates
-│   ├── repositories/# Database access layer
-│   └── services/    # Business logic
-├── frontend/        # React frontend (pnpm monorepo)
-│   ├── apps/web/    # Main web app
-│   └── packages/    # Shared packages (api-client, etc.)
-└── supabase/        # Database migrations
+├── agents/              # LiveKit transcription agent (Deepgram/OpenAI)
+│   └── stt_models.yaml  # Supported STT models
+├── llm_service/         # FastAPI LLM service (self-contained)
+│   ├── llm_service/     # Python package
+│   │   ├── api/routes/  # battlecards, livekit, models
+│   │   ├── models/      # Schemas
+│   │   ├── services/    # Business logic
+│   │   └── prompts/     # Prompt loader
+│   ├── prompts/         # Prompt YAML files (per mode)
+│   ├── llm_models.yaml  # Supported LLM models
+│   ├── stt_models.yaml  # Supported STT models (served via API)
+│   ├── Dockerfile
+│   └── docker-compose.yml
+├── frontend/            # React frontend (pnpm monorepo)
+│   ├── apps/web/        # Main web app
+│   └── packages/        # Shared packages (api-client, etc.)
+└── supabase/            # Database migrations
 ```
 
 ## Docker Deployment (VPS)
 
 ```bash
-git clone <repo> /opt/dozi && cd /opt/dozi
+git clone <repo> /opt/dozi && cd /opt/dozi/llm_service
 cp .env.example .env
 # Fill in real values, set CORS_ORIGINS=https://your-vercel-domain.com
 
 docker compose up -d --build
 ```
 
-Set up host nginx (template at `deploy/nginx/api.conf`):
-
-```bash
-sudo cp deploy/nginx/api.conf /etc/nginx/sites-available/
-# Edit domain name, symlink to sites-enabled
-sudo certbot --nginx -d api.yourdomain.com
-sudo nginx -t && sudo systemctl reload nginx
-```
-
-Update with `git pull && docker compose up -d --build`.
+Update with `git pull && docker compose up -d --build` (from `llm_service/`).
 
 ## Development
 
 This project uses pre-commit hooks for code quality (Ruff + ty):
 
 ```bash
+cd llm_service
 uv sync --dev
 uv run pre-commit install
 ```

@@ -29,7 +29,7 @@ export function useAudioPublish({ room, enabled = true }: UseAudioPublishParams)
       if (trackRef.current) {
         try {
           await room.localParticipant.unpublishTrack(trackRef.current);
-        } catch (_) { /* ignore */ }
+        } catch { /* ignore */ }
         trackRef.current.stop();
         trackRef.current = null;
         setAudioTrack(null);

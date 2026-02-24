@@ -157,7 +157,7 @@ export function useLiveKitRoom({
     return () => {
       disconnect();
     };
-  }, [token, serverUrl]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [token, serverUrl]);
 
   return {
     room,

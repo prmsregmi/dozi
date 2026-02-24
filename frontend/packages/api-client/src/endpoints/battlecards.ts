@@ -1,33 +1,36 @@
 import { apiClient } from '../client';
+import type { PromptOverride } from './preferences';
 
-export interface BattleCard {
-  id: string;
-  conversation_id: string;
-  insights: Array<{
-    type: string;
-    content: string;
-    priority: 'low' | 'medium' | 'high';
-  }>;
+export interface Insight {
+  type: string;
+  content: string;
+  priority: 'low' | 'medium' | 'high';
+}
+
+export interface BattleCardResult {
+  mode: string;
+  insights: Insight[];
   summary: string;
   recommendations: string[];
-  created_at: string;
+}
+
+export interface LLMSettings {
+  llm_model?: string;
+  temperature?: number;
+  prompt_overrides?: Record<string, PromptOverride> | null;
 }
 
 export interface GenerateBattleCardRequest {
-  conversation_id: string;
-  transcript?: string;
+  transcript: string;
+  mode: string;
+  user_settings?: LLMSettings;
 }
 
 export const battlecardsApi = {
-  generate: async (data: GenerateBattleCardRequest): Promise<BattleCard> => {
+  generate: async (data: GenerateBattleCardRequest): Promise<BattleCardResult> => {
     const response = await apiClient.post('/battlecards/generate', data, {
-      timeout: 60000, // LLM generation can take longer than default
+      timeout: 60000,
     });
-    return response.data;
-  },
-
-  getForConversation: async (conversationId: string): Promise<BattleCard[]> => {
-    const response = await apiClient.get(`/battlecards/conversation/${conversationId}`);
     return response.data;
   },
 };

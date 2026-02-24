@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mic, MicOff, PhoneOff } from 'lucide-react';
 import { useRoomStore } from '../store/roomStore';
-import { conversationsApi } from '@dozi/api-client';
+import { completeConversation } from '../lib/db';
 
 interface AudioControlsProps {
   conversationId: string | null;
@@ -60,7 +60,7 @@ export default function AudioControls({ conversationId, startTime }: AudioContro
     if (conversationId) {
       const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
       try {
-        await conversationsApi.complete(conversationId, durationSeconds);
+        await completeConversation(conversationId, durationSeconds);
       } catch (err) {
         console.error('[AudioControls] Failed to complete conversation:', err);
       }

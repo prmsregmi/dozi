@@ -84,22 +84,3 @@ class LiveKitService:
         )
 
         return token.to_jwt()
-
-    async def list_rooms(self) -> list[str]:
-        """
-        List all active rooms.
-
-        Returns:
-            List of room names
-        """
-        response = await self.lkapi.room.list_rooms(api.ListRoomsRequest())
-        return [room.name for room in response.rooms]
-
-    async def delete_room(self, room_name: str) -> None:
-        """
-        Delete a room.
-
-        Args:
-            room_name: Name of the room to delete
-        """
-        await self.lkapi.room.delete_room(api.DeleteRoomRequest(room=room_name))

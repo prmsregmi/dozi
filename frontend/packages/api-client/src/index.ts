@@ -4,7 +4,5 @@
 
 export * from './client';
 export * from './endpoints/livekit';
-export * from './endpoints/conversations';
 export * from './endpoints/battlecards';
-export * from './endpoints/transcriptions';
 export * from './endpoints/preferences';

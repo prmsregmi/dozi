@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
-import { battlecardsApi, preferencesApi } from '@dozi/api-client';
+import { battlecardsApi, type LLMSettings } from '@dozi/api-client';
+import { getPreferences, saveBattleCard } from '../lib/db';
 import { useInsightsStore } from '../store/insightsStore';
 
 const DEFAULT_BATCH_SIZE = 1;
@@ -13,16 +14,21 @@ export function useBattleCardGenerator(conversationId: string | null) {
   const generatingRef = useRef(false);
   const batchSizeRef = useRef(DEFAULT_BATCH_SIZE);
   const intervalMsRef = useRef(DEFAULT_INTERVAL_MS);
+  const llmSettingsRef = useRef<LLMSettings>({});
   const settingsLoadedRef = useRef(false);
 
   // Load user settings on mount
   useEffect(() => {
-    preferencesApi
-      .get()
+    getPreferences()
       .then((prefs) => {
-        const s = prefs.settings;
-        if (s.transcript_batch_size) batchSizeRef.current = s.transcript_batch_size;
-        if (s.generation_interval_seconds) intervalMsRef.current = s.generation_interval_seconds * 1000;
+        if (prefs?.settings) {
+          const s = prefs.settings as Record<string, unknown>;
+          if (typeof s.transcript_batch_size === 'number') batchSizeRef.current = s.transcript_batch_size;
+          if (typeof s.generation_interval_seconds === 'number') intervalMsRef.current = s.generation_interval_seconds * 1000;
+          if (typeof s.llm_model === 'string') llmSettingsRef.current.llm_model = s.llm_model;
+          if (typeof s.temperature === 'number') llmSettingsRef.current.temperature = s.temperature;
+          if ('prompt_overrides' in s) llmSettingsRef.current.prompt_overrides = s.prompt_overrides as LLMSettings['prompt_overrides'];
+        }
         settingsLoadedRef.current = true;
       })
       .catch(() => {
@@ -44,27 +50,32 @@ export function useBattleCardGenerator(conversationId: string | null) {
 
     generatingRef.current = true;
     const fullTranscript = currentTranscripts.map((t) => t.text).join('\n');
+    const currentMode = useInsightsStore.getState().mode;
+    const userSettings = Object.keys(llmSettingsRef.current).length > 0
+      ? llmSettingsRef.current
+      : undefined;
 
     battlecardsApi
-      .generate({ conversation_id: conversationId, transcript: fullTranscript })
+      .generate({ transcript: fullTranscript, mode: currentMode, user_settings: userSettings })
       .then((card) => {
-        const currentMode = useInsightsStore.getState().mode;
         setBattleCard({
-          mode: currentMode,
-          insights: card.insights.map((i) => ({
-            type: i.type,
-            content: i.content,
-            priority: i.priority,
-          })),
+          mode: card.mode as typeof currentMode,
+          insights: card.insights,
           summary: card.summary,
           recommendations: card.recommendations,
         });
         lastGenCountRef.current = currentTranscripts.length;
         lastGenTimeRef.current = Date.now();
+        // Fire-and-forget persistence
+        saveBattleCard({
+          conversationId,
+          insights: card.insights,
+          summary: card.summary,
+          recommendations: card.recommendations,
+        }).catch((err) => console.error('[BattleCard] Failed to save:', err));
       })
       .catch((err) => {
         console.error('[BattleCard] Generation failed:', err);
-        // Still update time so we don't immediately retry on failure
         lastGenTimeRef.current = Date.now();
       })
       .finally(() => {

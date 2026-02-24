@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   preferencesApi,
+  APP_SETTINGS_DEFAULTS,
   type UserSettings,
   type PromptTemplate,
   type ModelEntry,
   type ModelRegistry,
 } from '@dozi/api-client';
+import { getPreferences, upsertPreferences } from '../lib/db';
 import { ArrowLeft, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
 const MODES = ['meeting', 'call', 'interview'] as const;
@@ -255,7 +257,7 @@ export default function SettingsPage() {
   const [defaultMode, setDefaultMode] = useState<string>('meeting');
   const [promptDefaults, setPromptDefaults] = useState<Record<string, PromptTemplate>>({});
   const [modelRegistry, setModelRegistry] = useState<ModelRegistry | null>(null);
-  const [granularSettings, setGranularSettings] = useState(true);
+  const granularSettings = true;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -264,22 +266,17 @@ export default function SettingsPage() {
   const sttModels: ModelEntry[] = modelRegistry?.stt ?? [];
   const llmModels: ModelEntry[] = modelRegistry?.llm ?? [];
 
-  // Default settings come entirely from the API (backend's UserSettings defaults)
-  const defaultSettings: UserSettings | null = modelRegistry?.defaults ?? null;
-
   useEffect(() => {
     Promise.all([
-      preferencesApi.get(),
+      getPreferences(),
       preferencesApi.getPromptDefaults(),
-      preferencesApi.getConfig(),
       preferencesApi.getModels(),
     ])
-      .then(([prefs, defaults, config, models]) => {
-        setSettings({ ...models.defaults, ...prefs.settings });
-        setDefaultMode(prefs.default_mode ?? 'meeting');
+      .then(([prefs, defaults, models]) => {
+        setSettings({ ...APP_SETTINGS_DEFAULTS, ...models.defaults, ...(prefs?.settings ?? {}) } as UserSettings);
+        setDefaultMode(prefs?.default_mode ?? 'meeting');
         setPromptDefaults(defaults);
         setModelRegistry(models);
-        setGranularSettings(config.granular_settings);
       })
       .catch((err) => {
         console.error('[Settings] Failed to load:', err);
@@ -293,7 +290,7 @@ export default function SettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      await preferencesApi.update(settings);
+      await upsertPreferences({ settings: settings as unknown as Record<string, unknown> });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -305,10 +302,11 @@ export default function SettingsPage() {
   };
 
   const update = <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => prev ? { ...prev, [key]: value } : prev);
   };
 
   const selectPreset = async (preset: Preset) => {
+    if (!settings) return;
     const newSettings: UserSettings = {
       ...settings,
       ...preset.settings,
@@ -318,7 +316,7 @@ export default function SettingsPage() {
     setError(null);
     setSaved(false);
     try {
-      await preferencesApi.update(newSettings);
+      await upsertPreferences({ settings: newSettings as unknown as Record<string, unknown> });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (err) {
@@ -330,7 +328,7 @@ export default function SettingsPage() {
   };
 
   const getPromptOverride = (mode: string, field: 'system_message' | 'user_message') => {
-    return settings.prompt_overrides?.[mode]?.[field] ?? '';
+    return settings?.prompt_overrides?.[mode]?.[field] ?? '';
   };
 
   const setPromptOverride = (
@@ -339,6 +337,7 @@ export default function SettingsPage() {
     value: string
   ) => {
     setSettings((prev) => {
+      if (!prev) return prev;
       const overrides = { ...(prev.prompt_overrides ?? {}) };
       overrides[mode] = {
         system_message: overrides[mode]?.system_message ?? null,
@@ -358,23 +357,23 @@ export default function SettingsPage() {
   };
 
   const resetTranscription = () => {
-    update('stt_model', defaultSettings.stt_model);
-    update('min_silence_duration', defaultSettings.min_silence_duration);
-    update('min_speech_duration', defaultSettings.min_speech_duration);
+    if (modelRegistry) update('stt_model', modelRegistry.defaults.stt_model);
+    update('min_silence_duration', APP_SETTINGS_DEFAULTS.min_silence_duration);
+    update('min_speech_duration', APP_SETTINGS_DEFAULTS.min_speech_duration);
   };
 
   const resetBattleCard = () => {
-    update('llm_model', defaultSettings.llm_model);
-    update('transcript_batch_size', defaultSettings.transcript_batch_size);
-    update('generation_interval_seconds', defaultSettings.generation_interval_seconds);
-    update('temperature', defaultSettings.temperature);
+    if (modelRegistry) update('llm_model', modelRegistry.defaults.llm_model);
+    update('transcript_batch_size', APP_SETTINGS_DEFAULTS.transcript_batch_size);
+    update('generation_interval_seconds', APP_SETTINGS_DEFAULTS.generation_interval_seconds);
+    update('temperature', APP_SETTINGS_DEFAULTS.temperature);
   };
 
   const resetPrompts = () => {
     update('prompt_overrides', null);
   };
 
-  if (loading || !settings || !defaultSettings) {
+  if (loading || !settings) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <p className="text-slate-400">Loading settings...</p>

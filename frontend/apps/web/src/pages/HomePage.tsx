@@ -1,6 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { conversationsApi, generateToken, type Conversation } from '@dozi/api-client';
+import { createRoom, generateToken, preferencesApi } from '@dozi/api-client';
+import {
+  createConversation,
+  updateConversationRoom,
+  listConversations,
+  getPreferences,
+  type Conversation,
+} from '../lib/db';
 import { useAuthStore } from '../store/authStore';
 import { LogOut, Users, Phone, Briefcase, Clock, Settings } from 'lucide-react';
 
@@ -61,8 +68,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!user) return;
-    conversationsApi
-      .list()
+    listConversations()
       .then(setSessions)
       .catch((err) => console.error('[HomePage] Failed to load sessions:', err));
   }, [user]);
@@ -78,14 +84,31 @@ export default function HomePage() {
     setError(null);
 
     try {
-      const conversation = await conversationsApi.create({ title: title.trim(), mode });
+      // Step 1: Create conversation row in Supabase
+      const conversation = await createConversation(title.trim(), mode);
 
-      if (!conversation.livekit_room_name) {
-        throw new Error('Failed to initialize session. Please try again.');
-      }
+      // Step 2: Get preferences and model registry for STT metadata
+      const [prefs, models] = await Promise.all([getPreferences(), preferencesApi.getModels()]);
 
+      const s = (prefs?.settings ?? {}) as Record<string, unknown>;
+      const sttModel = (s.stt_model as string | undefined) ?? models.defaults.stt_model;
+      const sttEntry = models.stt.find((m) => m.model === sttModel);
+      const metadata: Record<string, unknown> = {
+        stt_model: sttModel,
+        stt_provider: sttEntry?.provider,
+      };
+      if (s.min_silence_duration !== undefined) metadata.min_silence_duration = s.min_silence_duration;
+      if (s.min_speech_duration !== undefined) metadata.min_speech_duration = s.min_speech_duration;
+
+      // Step 3: Create LiveKit room (agent dispatched automatically)
+      const roomResponse = await createRoom({ metadata });
+
+      // Step 4: Save room name to Supabase
+      await updateConversationRoom(conversation.id, roomResponse.room_name);
+
+      // Step 5: Generate participant token
       const tokenResponse = await generateToken({
-        room_name: conversation.livekit_room_name,
+        room_name: roomResponse.room_name,
         participant_identity: user.id,
         participant_name: user.email ?? undefined,
       });
@@ -93,8 +116,8 @@ export default function HomePage() {
       sessionStorage.setItem('livekit_token', tokenResponse.token);
       sessionStorage.setItem('livekit_url', tokenResponse.url);
       sessionStorage.setItem('conversationId', conversation.id);
-      sessionStorage.setItem('conversationMode', conversation.mode);
-      sessionStorage.setItem('conversationTitle', conversation.title);
+      sessionStorage.setItem('conversationMode', mode);
+      sessionStorage.setItem('conversationTitle', title.trim());
 
       navigate(`/session/${conversation.id}`);
     } catch (err) {

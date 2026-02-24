@@ -3,27 +3,35 @@
 import asyncio
 import json
 import logging
+import os
 import traceback
-from pathlib import Path
 
-import yaml
+import httpx
 from livekit.agents import Agent, AgentServer, AgentSession, JobContext, JobProcess
 from livekit.plugins import openai, silero
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Load STT model defaults from stt_models.yaml
-# In Docker: co-located with the script. In local dev: project root.
-_stt_yaml_path = Path(__file__).parent / "stt_models.yaml"
-if not _stt_yaml_path.exists():
-    _stt_yaml_path = Path(__file__).parent.parent / "stt_models.yaml"
-with _stt_yaml_path.open() as _f:
-    _STT_REGISTRY = yaml.safe_load(_f)
+# ---------------------------------------------------------------------------
+# Fetch model registry from LLM service at startup
+# ---------------------------------------------------------------------------
 
-_STT_DEFAULT_MODEL = _STT_REGISTRY["default"]
-_STT_PROVIDERS = {e["model"]: e["provider"] for e in _STT_REGISTRY.get("models", [])}
-_STT_DEFAULT_PROVIDER = _STT_PROVIDERS[_STT_DEFAULT_MODEL]
+_LLM_SERVICE_URL = os.environ.get("LLM_SERVICE_URL", "http://localhost:8000")
+
+try:
+    _resp = httpx.get(f"{_LLM_SERVICE_URL}/models", timeout=10)
+    _resp.raise_for_status()
+    _registry = _resp.json()
+    _STT_DEFAULT_MODEL: str = _registry["defaults"]["stt_model"]
+    _STT_PROVIDERS: dict[str, str] = {e["model"]: e["provider"] for e in _registry.get("stt", [])}
+    _STT_DEFAULT_PROVIDER: str = _STT_PROVIDERS[_STT_DEFAULT_MODEL]
+    logger.info("Loaded model registry from LLM service — default STT: %s", _STT_DEFAULT_MODEL)
+except Exception as exc:
+    logger.exception("Failed to fetch model registry from %s — cannot start.", _LLM_SERVICE_URL)
+    raise SystemExit(1) from exc
+
+# ---------------------------------------------------------------------------
 
 server = AgentServer()
 
@@ -77,7 +85,6 @@ async def entrypoint(ctx: JobContext):
     logger.info("Transcription agent joined room: %s", ctx.room.name)
 
     try:
-        # Defaults from stt_models.yaml
         stt_provider = _STT_DEFAULT_PROVIDER
         stt_model = _STT_DEFAULT_MODEL
         vad = ctx.proc.userdata["vad"]
@@ -90,9 +97,8 @@ async def entrypoint(ctx: JobContext):
                     stt_provider = meta["stt_provider"]
                 if meta.get("stt_model"):
                     stt_model = meta["stt_model"]
-                    logger.info("Using STT model from settings: %s", stt_model)
+                    logger.info("Using STT model from room metadata: %s", stt_model)
 
-                # Recreate VAD with custom params if provided
                 min_silence = meta.get("min_silence_duration")
                 min_speech = meta.get("min_speech_duration")
                 if min_silence is not None or min_speech is not None:
@@ -108,7 +114,6 @@ async def entrypoint(ctx: JobContext):
             except (json.JSONDecodeError, KeyError):
                 logger.warning("Failed to parse room metadata, using defaults")
 
-        # Connect first so we can publish errors back to the frontend
         await ctx.connect()
 
         stt = _build_stt(stt_provider, stt_model)
@@ -123,7 +128,6 @@ async def entrypoint(ctx: JobContext):
         @session.on("user_input_transcribed")
         def on_transcript(transcript):
             if is_streaming and not transcript.is_final:
-                # Publish interim transcripts on a separate topic
                 text = transcript.transcript.strip()
                 if text:
                     asyncio.create_task(

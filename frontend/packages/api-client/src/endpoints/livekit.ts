@@ -1,6 +1,5 @@
 /**
  * LiveKit API endpoints
- * Matches backend routes from: src/dozi/api/routes/livekit.py
  */
 
 import { apiClient } from '../client';
@@ -10,7 +9,9 @@ import { apiClient } from '../client';
  */
 
 export interface CreateRoomRequest {
-  room_name: string;
+  room_name?: string;
+  metadata?: Record<string, unknown>;
+  dispatch_agent?: boolean;
 }
 
 export interface CreateRoomResponse {
@@ -29,41 +30,14 @@ export interface GenerateTokenResponse {
   url: string;
 }
 
-export interface DeleteRoomResponse {
-  message: string;
-}
-
 /**
  * Create a new LiveKit room
  *
  * @param roomName - Name for the room
  * @returns Room details including LiveKit URL
  */
-export async function createRoom(roomName: string): Promise<CreateRoomResponse> {
-  const response = await apiClient.post<CreateRoomResponse>('/livekit/rooms', {
-    room_name: roomName,
-  });
-  return response.data;
-}
-
-/**
- * List all active LiveKit rooms
- *
- * @returns Array of room names
- */
-export async function listRooms(): Promise<string[]> {
-  const response = await apiClient.get<string[]>('/livekit/rooms');
-  return response.data;
-}
-
-/**
- * Delete a LiveKit room
- *
- * @param roomName - Name of the room to delete
- * @returns Success message
- */
-export async function deleteRoom(roomName: string): Promise<DeleteRoomResponse> {
-  const response = await apiClient.delete<DeleteRoomResponse>(`/livekit/rooms/${roomName}`);
+export async function createRoom(request: CreateRoomRequest): Promise<CreateRoomResponse> {
+  const response = await apiClient.post<CreateRoomResponse>('/livekit/rooms', request);
   return response.data;
 }
 

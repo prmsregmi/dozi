@@ -5,7 +5,7 @@ from pathlib import Path
 
 import yaml
 
-from ..models.schemas import AssistMode
+from ..schemas import AssistMode
 from .models import Prompt
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ class PromptLoader:
         """
         if prompts_dir is None:
             # Default to /prompts/ at project root
-            project_root = Path(__file__).parent.parent.parent.parent
+            project_root = Path(__file__).parent.parent.parent
             prompts_dir = project_root / "prompts"
 
         self.prompts_dir = prompts_dir

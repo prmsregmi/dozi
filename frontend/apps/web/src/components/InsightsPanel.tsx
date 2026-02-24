@@ -5,9 +5,9 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useInsightsStore } from '../store/insightsStore';
 import { formatAssistMode, getPriorityColor, getPriorityBgColor } from '@dozi/shared';
-import { Lightbulb, AlertCircle, MessageSquare, TrendingUp } from 'lucide-react';
+import { type LucideIcon, Lightbulb, AlertCircle, MessageSquare, TrendingUp } from 'lucide-react';
 
-const insightIcons: Record<string, any> = {
+const insightIcons: Record<string, LucideIcon> = {
   key_point: Lightbulb,
   objection: AlertCircle,
   suggestion: MessageSquare,

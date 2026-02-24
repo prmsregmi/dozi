@@ -1,9 +1,0 @@
-models:
-  - model: nova-3
-    provider: deepgram
-    name: Deepgram Nova-3
-  - model: gpt-4o-transcribe
-    provider: openai
-    name: OpenAI Transcribe
-
-default: nova-3

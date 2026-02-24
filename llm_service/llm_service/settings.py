@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # --- Model registry (single source of truth from YAML) ---
 
-_PROJECT_ROOT = Path(__file__).parent.parent.parent
+_PROJECT_ROOT = Path(__file__).parent.parent
 
 
 def _load_yaml(filename: str) -> dict:
@@ -15,27 +15,22 @@ def _load_yaml(filename: str) -> dict:
         return yaml.safe_load(f)
 
 
-_STT_REGISTRY = _load_yaml("stt_models.yaml")
-_LLM_REGISTRY = _load_yaml("llm_models.yaml")
+_MODELS = _load_yaml("models.yaml")
+_STT_REGISTRY = _MODELS["stt"]
+_LLM_REGISTRY = _MODELS["llm"]
 
-_MODEL_PROVIDERS: dict[str, str] = {}
-for _entry in _STT_REGISTRY.get("models", []):
-    _MODEL_PROVIDERS[_entry["model"]] = _entry["provider"]
+_LLM_PROVIDERS: dict[str, str] = {}
 for _entry in _LLM_REGISTRY.get("models", []):
-    _MODEL_PROVIDERS[_entry["model"]] = _entry["provider"]
+    _LLM_PROVIDERS[_entry["model"]] = _entry["provider"]
 
-STT_DEFAULT = _STT_REGISTRY["default"]
 LLM_DEFAULT = _LLM_REGISTRY["default"]
 
 
 def provider_for_model(model: str) -> str:
-    """Derive the provider from a model name. Every supported model must be in
-    the YAML files — if it's not, that's a configuration error."""
-    provider = _MODEL_PROVIDERS.get(model)
+    """Derive the LLM provider from a model name."""
+    provider = _LLM_PROVIDERS.get(model)
     if provider is None:
-        raise ValueError(
-            f"Unknown model '{model}'. Supported models: {', '.join(_MODEL_PROVIDERS)}"
-        )
+        raise ValueError(f"Unknown model '{model}'. Supported models: {', '.join(_LLM_PROVIDERS)}")
     return provider
 
 
@@ -52,17 +47,13 @@ class Settings(BaseSettings):
     livekit_api_key: str
     livekit_api_secret: str
     livekit_url: str = "wss://your-livekit-instance.livekit.cloud"
-    deepgram_api_key: str = ""
     groq_api_key: str = ""
 
     # LLM Configuration (default from llm_models.yaml)
     llm_model: str = LLM_DEFAULT
 
-    # Supabase Configuration
-    supabase_url: str
-    supabase_publishable_key: str
-    supabase_service_key: str
-    supabase_jwt_secret: str = ""
+    # Auth — only used to construct the JWKS endpoint for JWT validation
+    auth_jwks_url: str
 
     # CORS
     cors_origins: list[str] = ["*"]
@@ -71,7 +62,6 @@ class Settings(BaseSettings):
     app_name: str = "Dozi"
     app_version: str = "0.1.0"
     debug: bool = False
-    granular_settings: bool = True
 
 
 settings = Settings()  # type: ignore[call-arg]

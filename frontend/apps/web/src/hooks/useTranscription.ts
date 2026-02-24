@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Room, RoomEvent } from 'livekit-client';
-import { transcriptionsApi } from '@dozi/api-client';
+import { saveTranscription } from '../lib/db';
 import { useInsightsStore } from '../store/insightsStore';
 
 export function useTranscription(room: Room | null, conversationId: string | null) {
@@ -39,14 +39,12 @@ export function useTranscription(room: Room | null, conversationId: string | nul
 
       addTranscript(text, timestamp);
 
-      transcriptionsApi
-        .save({
-          conversation_id: conversationId,
-          text,
-          speaker: participant?.identity,
-          sequence_number: sequenceRef.current,
-        })
-        .catch((err) => console.error('[Transcription] Failed to save:', err));
+      saveTranscription({
+        conversationId,
+        text,
+        speaker: participant?.identity,
+        sequenceNumber: sequenceRef.current,
+      }).catch((err) => console.error('[Transcription] Failed to save:', err));
     };
 
     room.on(RoomEvent.DataReceived, handleData);

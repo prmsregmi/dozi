@@ -9,10 +9,11 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy application source
-COPY src/ src/
+COPY llm_service/ llm_service/
+COPY models.yaml prompts/ ./
 
 ENV PATH="/app/.venv/bin:$PATH"
-ENV PYTHONPATH="/app/src"
+ENV PYTHONPATH="/app"
 
 # Create non-root user
 RUN groupadd --gid 10001 appuser && \
@@ -25,4 +26,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
 
-CMD ["uvicorn", "dozi.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "llm_service.main:app", "--host", "0.0.0.0", "--port", "8000"]

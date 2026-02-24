@@ -2,24 +2,36 @@
 # See https://pre-commit.com for more information
 
 repos:
-  # Ruff - formatting and linting
+  # Python — Ruff (lint + format)
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.2
     hooks:
-      # Run the linter with auto-fix
       - id: ruff
         args: [--fix]
         types_or: [python, pyi]
-      # Run the formatter
+        files: ^llm_service/
       - id: ruff-format
         types_or: [python, pyi]
+        files: ^llm_service/
 
-  # ty - type checking
+  # Python — ty type checker
   - repo: local
     hooks:
       - id: ty
         name: ty type checker
-        entry: uv run ty check
+        entry: bash -c 'cd llm_service && uv run ty check'
         language: system
         types: [python]
+        files: ^llm_service/
+        pass_filenames: false
+
+  # Frontend — ESLint
+  - repo: local
+    hooks:
+      - id: eslint
+        name: ESLint
+        entry: bash -c 'cd frontend && pnpm lint'
+        language: system
+        types_or: [ts, tsx, javascript]
+        files: ^frontend/
         pass_filenames: false

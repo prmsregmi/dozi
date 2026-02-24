@@ -1,0 +1,25 @@
+stt:
+  default: nova-3
+  models:
+    - model: nova-3
+      provider: deepgram
+      name: Deepgram Nova-3
+    - model: gpt-4o-transcribe
+      provider: openai
+      name: OpenAI Transcribe
+
+llm:
+  default: meta-llama/llama-4-maverick-17b-128e-instruct
+  models:
+    - model: meta-llama/llama-4-maverick-17b-128e-instruct
+      provider: groq
+      name: Llama 4 Maverick (Groq)
+    - model: gpt-5.2
+      provider: openai
+      name: GPT 5.2
+    - model: gpt-4o
+      provider: openai
+      name: GPT 4o
+    - model: gpt-4o-mini
+      provider: openai
+      name: GPT 4o Mini

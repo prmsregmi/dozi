@@ -16,21 +16,19 @@ export interface UserSettings {
   prompt_overrides: Record<string, PromptOverride> | null;
 }
 
-export interface UserPreferences {
-  user_id: string;
-  default_mode: string;
-  settings: Partial<UserSettings>;
-  created_at: string;
-  updated_at: string;
-}
+/** Non-model defaults owned by the frontend. Model names always come from GET /models. */
+export const APP_SETTINGS_DEFAULTS: Omit<UserSettings, 'stt_model' | 'llm_model'> = {
+  min_silence_duration: 0.5,
+  min_speech_duration: 0.1,
+  transcript_batch_size: 1,
+  generation_interval_seconds: 5,
+  temperature: 0.3,
+  prompt_overrides: null,
+};
 
 export interface PromptTemplate {
   system_message: string;
   user_message: string;
-}
-
-export interface AppConfig {
-  granular_settings: boolean;
 }
 
 export interface ModelEntry {
@@ -42,32 +40,20 @@ export interface ModelEntry {
 export interface ModelRegistry {
   stt: ModelEntry[];
   llm: ModelEntry[];
-  defaults: UserSettings;
+  defaults: {
+    stt_model: string;
+    llm_model: string;
+  };
 }
 
 export const preferencesApi = {
-  getConfig: async (): Promise<AppConfig> => {
-    const response = await apiClient.get('/preferences/config');
-    return response.data;
-  },
-
-  get: async (): Promise<UserPreferences> => {
-    const response = await apiClient.get('/preferences/');
-    return response.data;
-  },
-
-  update: async (settings: Partial<UserSettings>): Promise<UserPreferences> => {
-    const response = await apiClient.patch('/preferences/', { settings });
-    return response.data;
-  },
-
   getModels: async (): Promise<ModelRegistry> => {
-    const response = await apiClient.get('/preferences/models');
+    const response = await apiClient.get('/models');
     return response.data;
   },
 
   getPromptDefaults: async (): Promise<Record<string, PromptTemplate>> => {
-    const response = await apiClient.get('/preferences/prompt-defaults');
+    const response = await apiClient.get('/prompts/defaults');
     return response.data;
   },
 };

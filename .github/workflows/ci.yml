@@ -2,13 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
-  lint:
+  python:
+    name: Python (lint + typecheck)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: llm_service
 
     steps:
       - uses: actions/checkout@v4
@@ -24,12 +28,42 @@ jobs:
       - name: Install dependencies
         run: uv sync --dev
 
-      - name: Run Ruff linting
-        run: uv run ruff check --fix .
+      - name: Ruff lint
+        run: uv run ruff check .
 
-      - name: Run Ruff formatting
+      - name: Ruff format
         run: uv run ruff format --check .
 
-      - name: Run type checking
+      - name: Type check
         run: uv run ty check
 
+  frontend:
+    name: Frontend (lint + typecheck)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm type-check
