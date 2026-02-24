@@ -38,11 +38,21 @@ npx supabase db push
 ### 2. Backend
 
 ```bash
-uv sync
 cp .env.example .env
 # Fill in: OPENAI_API_KEY, LIVEKIT_*, SUPABASE_* values from step 1
+```
 
+**Option A: Direct (recommended for development)**
+
+```bash
+uv sync
 uv run uvicorn src.dozi.main:app --reload
+```
+
+**Option B: Docker**
+
+```bash
+docker compose up -d --build
 ```
 
 Backend runs at `http://localhost:8000`
@@ -98,6 +108,27 @@ dozi/
 │   └── packages/    # Shared packages (api-client, etc.)
 └── supabase/        # Database migrations
 ```
+
+## Docker Deployment (VPS)
+
+```bash
+git clone <repo> /opt/dozi && cd /opt/dozi
+cp .env.example .env
+# Fill in real values, set CORS_ORIGINS=https://your-vercel-domain.com
+
+docker compose up -d --build
+```
+
+Set up host nginx (template at `deploy/nginx/api.conf`):
+
+```bash
+sudo cp deploy/nginx/api.conf /etc/nginx/sites-available/
+# Edit domain name, symlink to sites-enabled
+sudo certbot --nginx -d api.yourdomain.com
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Update with `git pull && docker compose up -d --build`.
 
 ## Development
 

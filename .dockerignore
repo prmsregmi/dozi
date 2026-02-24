@@ -1,0 +1,16 @@
+.git
+.gitignore
+.venv
+__pycache__
+*.pyc
+node_modules
+frontend
+.env
+.env.*
+!.env.example
+agents/
+tests/
+*.md
+.claude
+.ruff_cache
+.mypy_cache

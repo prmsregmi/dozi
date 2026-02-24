@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     supabase_service_key: str
     supabase_jwt_secret: str = ""
 
+    # CORS
+    cors_origins: list[str] = ["*"]
+
     # Application Settings
     app_name: str = "Dozi"
     app_version: str = "0.1.0"
