@@ -35,3 +35,14 @@ repos:
         types_or: [ts, tsx, javascript]
         files: ^frontend/
         pass_filenames: false
+
+  # Frontend — TypeScript type check
+  - repo: local
+    hooks:
+      - id: tsc
+        name: TypeScript type check
+        entry: bash -c 'cd frontend && pnpm type-check'
+        language: system
+        types_or: [ts, tsx]
+        files: ^frontend/
+        pass_filenames: false
