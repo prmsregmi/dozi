@@ -12,6 +12,7 @@ from ...models.db_models import ConversationCreate, ConversationResponse
 from ...models.schemas import UserSettings
 from ...repositories import ConversationRepository
 from ...services.livekit_service import LiveKitService
+from ...settings import provider_for_model
 
 router = APIRouter(prefix="/conversations", tags=["conversations"])
 livekit_service = LiveKitService()
@@ -32,6 +33,7 @@ async def create_conversation(
     if prefs_result and prefs_result.data and prefs_result.data.get("settings"):
         user_settings = UserSettings(**prefs_result.data["settings"])
         room_metadata = {
+            "stt_provider": provider_for_model(user_settings.stt_model),
             "stt_model": user_settings.stt_model,
             "min_silence_duration": user_settings.min_silence_duration,
             "min_speech_duration": user_settings.min_speech_duration,

@@ -13,11 +13,15 @@ interface InsightsState {
   // Transcript history
   transcripts: Array<{ text: string; timestamp: string }>;
 
+  // Interim transcript (streaming STT preview, not persisted)
+  interimText: string | null;
+
   // Actions
   setBattleCard: (card: BattleCard) => void;
   addInsight: (insight: Insight) => void;
   setMode: (mode: AssistMode) => void;
   addTranscript: (text: string, timestamp: string) => void;
+  setInterimText: (text: string | null) => void;
   reset: () => void;
 }
 
@@ -25,6 +29,7 @@ const initialState = {
   battleCard: null,
   mode: AssistMode.MEETING,
   transcripts: [],
+  interimText: null,
 };
 
 export const useInsightsStore = create<InsightsState>((set) => ({
@@ -76,7 +81,10 @@ export const useInsightsStore = create<InsightsState>((set) => ({
   addTranscript: (text, timestamp) =>
     set((state) => ({
       transcripts: [...state.transcripts, { text, timestamp }],
+      interimText: null, // Clear interim when final arrives
     })),
+
+  setInterimText: (text) => set({ interimText: text }),
 
   reset: () => set(initialState),
 }));

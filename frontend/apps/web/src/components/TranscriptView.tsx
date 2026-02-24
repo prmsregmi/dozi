@@ -7,6 +7,7 @@ import { formatTimestamp } from '@dozi/shared';
 
 export default function TranscriptView() {
   const transcripts = useInsightsStore((state) => state.transcripts);
+  const interimText = useInsightsStore((state) => state.interimText);
 
   return (
     <div className="h-full flex flex-col">
@@ -20,7 +21,7 @@ export default function TranscriptView() {
 
       {/* Transcripts */}
       <div className="flex-1 overflow-y-auto p-4">
-        {transcripts.length === 0 ? (
+        {transcripts.length === 0 && !interimText ? (
           <div className="h-full flex items-center justify-center text-gray-400">
             <div className="text-center">
               <svg
@@ -52,6 +53,14 @@ export default function TranscriptView() {
                 <p className="text-sm text-gray-800">{transcript.text}</p>
               </div>
             ))}
+            {interimText && (
+              <div className="bg-gray-50/50 rounded-lg p-3 opacity-50">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-400 italic">listening...</span>
+                </div>
+                <p className="text-sm text-gray-500 italic">{interimText}</p>
+              </div>
+            )}
           </div>
         )}
       </div>

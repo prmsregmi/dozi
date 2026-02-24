@@ -33,6 +33,18 @@ export interface AppConfig {
   granular_settings: boolean;
 }
 
+export interface ModelEntry {
+  model: string;
+  provider: string;
+  name: string;
+}
+
+export interface ModelRegistry {
+  stt: ModelEntry[];
+  llm: ModelEntry[];
+  defaults: UserSettings;
+}
+
 export const preferencesApi = {
   getConfig: async (): Promise<AppConfig> => {
     const response = await apiClient.get('/preferences/config');
@@ -46,6 +58,11 @@ export const preferencesApi = {
 
   update: async (settings: Partial<UserSettings>): Promise<UserPreferences> => {
     const response = await apiClient.patch('/preferences/', { settings });
+    return response.data;
+  },
+
+  getModels: async (): Promise<ModelRegistry> => {
+    const response = await apiClient.get('/preferences/models');
     return response.data;
   },
 

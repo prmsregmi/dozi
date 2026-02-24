@@ -43,7 +43,7 @@ class LiveKitService:
         room = await self.lkapi.room.create_room(request)
         return room.name
 
-    async def dispatch_agent(self, room_name: str, agent_name: str = "whisper-transcriber") -> None:
+    async def dispatch_agent(self, room_name: str, agent_name: str = "transcriber") -> None:
         """
         Explicitly dispatch an agent to a room.
 

@@ -5,6 +5,7 @@ import { useInsightsStore } from '../store/insightsStore';
 
 export function useTranscription(room: Room | null, conversationId: string | null) {
   const addTranscript = useInsightsStore((state) => state.addTranscript);
+  const setInterimText = useInsightsStore((state) => state.setInterimText);
   const sequenceRef = useRef(0);
 
   useEffect(() => {
@@ -18,6 +19,15 @@ export function useTranscription(room: Room | null, conversationId: string | nul
       topic: string | undefined,
     ) => {
       console.log('[Transcription] DataReceived topic:', topic, 'from:', participant?.identity);
+
+      if (topic === 'transcription_interim') {
+        const text = new TextDecoder().decode(payload);
+        if (text.trim()) {
+          setInterimText(text);
+        }
+        return;
+      }
+
       if (topic !== 'transcription') return;
 
       const text = new TextDecoder().decode(payload);
@@ -43,5 +53,5 @@ export function useTranscription(room: Room | null, conversationId: string | nul
     return () => {
       room.off(RoomEvent.DataReceived, handleData);
     };
-  }, [room, conversationId, addTranscript]);
+  }, [room, conversationId, addTranscript, setInterimText]);
 }

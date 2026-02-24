@@ -57,12 +57,7 @@ export function createApiClient(supabaseClient?: SupabaseClient): AxiosInstance 
     },
     async (error: AxiosError) => {
       if (error.response) {
-        console.error(
-          `[API] Error ${error.response.status}:`,
-          error.response.data || error.message
-        );
-
-        // Handle 401 - token expired or invalid
+        // Handle 401 - token expired or not yet loaded
         const config = error.config;
         if (error.response.status === 401 && supabaseClient && config && !(config as any)._retry) {
           (config as any)._retry = true;
@@ -72,11 +67,15 @@ export function createApiClient(supabaseClient?: SupabaseClient): AxiosInstance 
           } = await supabaseClient.auth.refreshSession();
 
           if (session) {
-            // Retry request with new token
             config.headers.Authorization = `Bearer ${session.access_token}`;
             return client.request(config);
           }
         }
+
+        console.error(
+          `[API] Error ${error.response.status}:`,
+          error.response.data || error.message
+        );
       } else if (error.request) {
         console.error('[API] No response received:', error.message);
       } else {

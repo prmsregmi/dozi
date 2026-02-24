@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { initApiClient } from '@dozi/api-client';
 import HomePage from './pages/HomePage';
@@ -9,10 +8,10 @@ import AuthCallbackPage from './pages/AuthCallbackPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { supabase } from './lib/supabase';
 
+// Initialize API client with auth before any component renders
+initApiClient(supabase);
+
 function App() {
-  useEffect(() => {
-    initApiClient(supabase);
-  }, []);
 
   return (
     <BrowserRouter>

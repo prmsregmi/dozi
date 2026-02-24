@@ -2,8 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { battlecardsApi, preferencesApi } from '@dozi/api-client';
 import { useInsightsStore } from '../store/insightsStore';
 
-const DEFAULT_BATCH_SIZE = 3;
-const DEFAULT_INTERVAL_MS = 30_000;
+const DEFAULT_BATCH_SIZE = 1;
+const DEFAULT_INTERVAL_MS = 5_000;
 
 export function useBattleCardGenerator(conversationId: string | null) {
   const transcripts = useInsightsStore((state) => state.transcripts);

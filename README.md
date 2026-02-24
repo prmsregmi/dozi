@@ -5,7 +5,7 @@ AI-powered sales conversation assistant that provides real-time transcription an
 ## Architecture
 
 ```
-Frontend → LiveKit Cloud ← Whisper Agent
+Frontend → LiveKit Cloud ← Transcription Agent
     ↓ (gets transcription)
     ↓ (HTTP API call)
 FastAPI Backend → Generates insights → Returns via HTTP
@@ -13,15 +13,15 @@ FastAPI Backend → Generates insights → Returns via HTTP
 Supabase (auth + data)
 ```
 
-Frontend connects to LiveKit, receives transcriptions from Whisper agent, sends transcriptions to backend API for processing, and displays returned insights.
+Frontend connects to LiveKit, receives transcriptions from the transcription agent, sends them to the backend API for processing, and displays returned insights.
 
 ## Tech Stack
 
 - **Backend**: FastAPI, Python 3.13+, uv
 - **Frontend**: React 18, TypeScript, Vite, pnpm
 - **Database**: Supabase (PostgreSQL + Auth)
-- **Audio/Transcription**: LiveKit Cloud, OpenAI Whisper
-- **AI**: OpenAI GPT Models
+- **Audio/Transcription**: LiveKit Cloud, Deepgram Nova-3 (streaming STT)
+- **AI**: Groq (battle cards), OpenAI GPT (fallback)
 
 ## Setup
 
@@ -57,7 +57,7 @@ docker compose up -d --build
 
 Backend runs at `http://localhost:8000`
 
-### 3. Whisper Agent
+### 3. Transcription Agent
 
 Install LiveKit CLI:
 
@@ -74,7 +74,7 @@ cd agents/
 lk agent create --project dozi
 ```
 
-Set `OPENAI_API_KEY` in LiveKit Cloud dashboard under **Settings → Agents**.
+Set `DEEPGRAM_API_KEY` (and optionally `OPENAI_API_KEY`) in LiveKit Cloud dashboard under **Settings → Agents**.
 
 For local development, see [agents/README.md](agents/README.md).
 
@@ -96,7 +96,7 @@ Frontend runs at `http://localhost:5173`
 
 ```
 dozi/
-├── agents/          # LiveKit Whisper transcription agent
+├── agents/          # LiveKit transcription agent (Deepgram/OpenAI)
 ├── src/dozi/        # FastAPI backend
 │   ├── api/routes/  # API endpoints
 │   ├── models/      # Data models & schemas

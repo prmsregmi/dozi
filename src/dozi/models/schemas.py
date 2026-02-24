@@ -4,6 +4,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
+from ..settings import LLM_DEFAULT, STT_DEFAULT
+
 
 class AssistMode(StrEnum):
     """Mode of conversation assistance."""
@@ -55,14 +57,14 @@ class UserSettings(BaseModel):
     """User-configurable settings stored in the user_preferences JSONB column."""
 
     # Transcription
-    stt_model: str = "gpt-4o-transcribe"
+    stt_model: str = STT_DEFAULT
     min_silence_duration: float = Field(default=0.5, ge=0.2, le=1.0)
     min_speech_duration: float = Field(default=0.1, ge=0.05, le=0.5)
 
     # Battle card generation
-    llm_model: str = "gpt-5.2"
-    transcript_batch_size: int = Field(default=3, ge=1, le=10)
-    generation_interval_seconds: int = Field(default=30, ge=5, le=120)
+    llm_model: str = LLM_DEFAULT
+    transcript_batch_size: int = Field(default=1, ge=1, le=10)
+    generation_interval_seconds: int = Field(default=5, ge=5, le=120)
     temperature: float = Field(default=0.3, ge=0.0, le=1.0)
 
     # Prompt overrides (per mode) — None means use default YAML

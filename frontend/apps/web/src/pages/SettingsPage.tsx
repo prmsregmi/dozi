@@ -4,22 +4,11 @@ import {
   preferencesApi,
   type UserSettings,
   type PromptTemplate,
+  type ModelEntry,
+  type ModelRegistry,
 } from '@dozi/api-client';
 import { ArrowLeft, ChevronDown, ChevronRight, RotateCcw } from 'lucide-react';
 
-const DEFAULT_SETTINGS: UserSettings = {
-  stt_model: 'gpt-4o-transcribe',
-  min_silence_duration: 0.5,
-  min_speech_duration: 0.1,
-  llm_model: 'gpt-5.2',
-  transcript_batch_size: 3,
-  generation_interval_seconds: 30,
-  temperature: 0.3,
-  prompt_overrides: null,
-};
-
-const STT_MODELS = ['gpt-4o-transcribe', 'gpt-4o-mini-transcribe'];
-const LLM_MODELS = ['gpt-5.2', 'gpt-4o', 'gpt-4o-mini'];
 const MODES = ['meeting', 'call', 'interview'] as const;
 
 interface PresetSettings {
@@ -262,25 +251,34 @@ function SliderField({
 
 export default function SettingsPage() {
   const navigate = useNavigate();
-  const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<UserSettings | null>(null);
   const [defaultMode, setDefaultMode] = useState<string>('meeting');
   const [promptDefaults, setPromptDefaults] = useState<Record<string, PromptTemplate>>({});
+  const [modelRegistry, setModelRegistry] = useState<ModelRegistry | null>(null);
   const [granularSettings, setGranularSettings] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const sttModels: ModelEntry[] = modelRegistry?.stt ?? [];
+  const llmModels: ModelEntry[] = modelRegistry?.llm ?? [];
+
+  // Default settings come entirely from the API (backend's UserSettings defaults)
+  const defaultSettings: UserSettings | null = modelRegistry?.defaults ?? null;
+
   useEffect(() => {
     Promise.all([
       preferencesApi.get(),
       preferencesApi.getPromptDefaults(),
       preferencesApi.getConfig(),
+      preferencesApi.getModels(),
     ])
-      .then(([prefs, defaults, config]) => {
-        setSettings({ ...DEFAULT_SETTINGS, ...prefs.settings });
+      .then(([prefs, defaults, config, models]) => {
+        setSettings({ ...models.defaults, ...prefs.settings });
         setDefaultMode(prefs.default_mode ?? 'meeting');
         setPromptDefaults(defaults);
+        setModelRegistry(models);
         setGranularSettings(config.granular_settings);
       })
       .catch((err) => {
@@ -360,23 +358,23 @@ export default function SettingsPage() {
   };
 
   const resetTranscription = () => {
-    update('stt_model', DEFAULT_SETTINGS.stt_model);
-    update('min_silence_duration', DEFAULT_SETTINGS.min_silence_duration);
-    update('min_speech_duration', DEFAULT_SETTINGS.min_speech_duration);
+    update('stt_model', defaultSettings.stt_model);
+    update('min_silence_duration', defaultSettings.min_silence_duration);
+    update('min_speech_duration', defaultSettings.min_speech_duration);
   };
 
   const resetBattleCard = () => {
-    update('llm_model', DEFAULT_SETTINGS.llm_model);
-    update('transcript_batch_size', DEFAULT_SETTINGS.transcript_batch_size);
-    update('generation_interval_seconds', DEFAULT_SETTINGS.generation_interval_seconds);
-    update('temperature', DEFAULT_SETTINGS.temperature);
+    update('llm_model', defaultSettings.llm_model);
+    update('transcript_batch_size', defaultSettings.transcript_batch_size);
+    update('generation_interval_seconds', defaultSettings.generation_interval_seconds);
+    update('temperature', defaultSettings.temperature);
   };
 
   const resetPrompts = () => {
     update('prompt_overrides', null);
   };
 
-  if (loading) {
+  if (loading || !settings || !defaultSettings) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <p className="text-slate-400">Loading settings...</p>
@@ -418,30 +416,26 @@ export default function SettingsPage() {
               <h3 className="text-base font-semibold text-slate-900">Models</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">STT Model</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">Speech-to-Text</label>
                   <select
                     value={settings.stt_model}
-                    onChange={(e) => {
-                      update('stt_model', e.target.value);
-                    }}
+                    onChange={(e) => update('stt_model', e.target.value)}
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                   >
-                    {STT_MODELS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
+                    {sttModels.map((m) => (
+                      <option key={m.model} value={m.model}>{m.name}</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">LLM Model</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">LLM</label>
                   <select
                     value={settings.llm_model}
-                    onChange={(e) => {
-                      update('llm_model', e.target.value);
-                    }}
+                    onChange={(e) => update('llm_model', e.target.value)}
                     className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                   >
-                    {LLM_MODELS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
+                    {llmModels.map((m) => (
+                      <option key={m.model} value={m.model}>{m.name}</option>
                     ))}
                   </select>
                 </div>
@@ -507,16 +501,14 @@ export default function SettingsPage() {
             {/* Transcription Settings */}
             <Section title="Transcription" onReset={resetTranscription}>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">STT Model</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Speech-to-Text Model</label>
                 <select
                   value={settings.stt_model}
                   onChange={(e) => update('stt_model', e.target.value)}
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                 >
-                  {STT_MODELS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
+                  {sttModels.map((m) => (
+                    <option key={m.model} value={m.model}>{m.name}</option>
                   ))}
                 </select>
               </div>
@@ -551,10 +543,8 @@ export default function SettingsPage() {
                   onChange={(e) => update('llm_model', e.target.value)}
                   className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
                 >
-                  {LLM_MODELS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
+                  {llmModels.map((m) => (
+                    <option key={m.model} value={m.model}>{m.name}</option>
                   ))}
                 </select>
               </div>

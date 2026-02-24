@@ -56,9 +56,15 @@ async def generate_battlecard(
         user_settings = UserSettings(**prefs_result.data["settings"])
 
     mode = AssistMode(conversation.mode)
-    battlecard = await battlecard_service.generate_battlecard(
-        transcript, mode, user_settings=user_settings
-    )
+    try:
+        battlecard = await battlecard_service.generate_battlecard(
+            transcript, mode, user_settings=user_settings
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"LLM generation failed: {exc}",
+        ) from exc
 
     bc_repo = BattleCardRepository(supabase)
     return await bc_repo.create(

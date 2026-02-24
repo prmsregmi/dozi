@@ -6,9 +6,9 @@ from supabase import AsyncClient
 
 from ...auth import AuthenticatedUser, get_current_user, get_supabase
 from ...models.db_models import UserPreferencesResponse, UserPreferencesUpdate
-from ...models.schemas import AssistMode
+from ...models.schemas import AssistMode, UserSettings
 from ...prompts.loader import prompt_loader
-from ...settings import settings
+from ...settings import _LLM_REGISTRY, _STT_REGISTRY, settings
 
 router = APIRouter(prefix="/preferences", tags=["preferences"])
 
@@ -61,6 +61,16 @@ async def update_preferences(
 async def get_config():
     """Return app-level configuration flags."""
     return {"granular_settings": settings.granular_settings}
+
+
+@router.get("/models")
+async def get_models():
+    """Return the supported model registry and all UserSettings defaults."""
+    return {
+        "stt": _STT_REGISTRY.get("models", []),
+        "llm": _LLM_REGISTRY.get("models", []),
+        "defaults": UserSettings().model_dump(),
+    }
 
 
 @router.get("/prompt-defaults")

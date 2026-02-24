@@ -38,6 +38,15 @@ export default function SessionPage() {
   const conversationTitle = sessionStorage.getItem('conversationTitle') || 'Session';
   const conversationMode = sessionStorage.getItem('conversationMode') || 'meeting';
 
+  // Timeout if agent doesn't connect within 30s
+  const [agentTimedOut, setAgentTimedOut] = useState(false);
+
+  useEffect(() => {
+    if (agentReady || connectionState !== ConnectionState.CONNECTED) return;
+    const timer = setTimeout(() => setAgentTimedOut(true), 15_000);
+    return () => clearTimeout(timer);
+  }, [agentReady, connectionState]);
+
   // Duration timer — starts when the agent is ready
   const startTimeRef = useRef(0);
   const [elapsed, setElapsed] = useState(0);
@@ -86,8 +95,9 @@ export default function SessionPage() {
   // Auto-generate battle cards
   useBattleCardGenerator(conversationId ?? null);
 
-  // Cleanup on unmount
+  // Reset state on mount (clear stale data from previous session) and unmount
   useEffect(() => {
+    resetInsights();
     return () => {
       reset();
       resetInsights();
@@ -109,9 +119,29 @@ export default function SessionPage() {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-slate-600 text-sm">Waiting for transcription agent to join...</p>
-          <p className="text-slate-400 text-xs mt-1">Your microphone will activate once the agent is ready</p>
+          {agentTimedOut ? (
+            <>
+              <div className="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <p className="text-slate-700 text-sm font-medium">Agent failed to connect</p>
+              <p className="text-slate-500 text-xs mt-1 max-w-xs">The transcription agent didn't join in time. Check that your STT API key is configured correctly.</p>
+              <button
+                onClick={() => navigate('/')}
+                className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg text-sm"
+              >
+                Return Home
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="animate-spin rounded-full h-10 w-10 border-2 border-blue-600 border-t-transparent mx-auto mb-4"></div>
+              <p className="text-slate-600 text-sm">Waiting for transcription agent to join...</p>
+              <p className="text-slate-400 text-xs mt-1">Your microphone will activate once the agent is ready</p>
+            </>
+          )}
         </div>
       </div>
     );
