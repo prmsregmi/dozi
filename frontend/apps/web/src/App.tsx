@@ -3,6 +3,7 @@ import { initApiClient } from '@dozi/api-client';
 import HomePage from './pages/HomePage';
 import SessionPage from './pages/SessionPage';
 import SettingsPage from './pages/SettingsPage';
+import ConversationSummaryPage from './pages/ConversationSummaryPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -42,6 +43,15 @@ function App() {
           element={
             <ProtectedRoute>
               <SessionPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/conversations/:id"
+          element={
+            <ProtectedRoute>
+              <ConversationSummaryPage />
             </ProtectedRoute>
           }
         />

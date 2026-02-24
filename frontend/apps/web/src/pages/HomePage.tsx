@@ -1,77 +1,129 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { createRoom, generateToken, preferencesApi } from '@dozi/api-client';
 import {
   createConversation,
   updateConversationRoom,
-  listConversations,
+  listConversationsByMode,
+  countConversationsByMode,
+  deleteConversation,
   getPreferences,
   type Conversation,
 } from '../lib/db';
 import { useAuthStore } from '../store/authStore';
-import { LogOut, Users, Phone, Briefcase, Clock, Settings } from 'lucide-react';
+import {
+  LogOut,
+  Users,
+  Phone,
+  Briefcase,
+  Settings,
+  Clock,
+  Trash2,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Mic,
+  AlertCircle,
+  X,
+} from 'lucide-react';
 
-const MODE_CARDS: Array<{
-  mode: 'meeting' | 'call' | 'interview';
-  label: string;
-  description: string;
-  icon: typeof Users;
-  color: string;
-}> = [
+type Mode = 'meeting' | 'call' | 'interview';
+
+const PAGE_SIZE = 8;
+
+const TABS = [
   {
-    mode: 'meeting',
-    label: 'Meeting',
-    description: 'Team meetings & group discussions',
+    mode: 'meeting' as Mode,
+    label: 'Meetings',
+    singular: 'Meeting',
     icon: Users,
-    color: 'bg-blue-500',
+    iconBg: 'bg-blue-500',
+    tabActiveText: 'text-blue-600',
+    tabActiveBorder: 'border-blue-600',
+    badge: 'bg-blue-100 text-blue-700',
+    badgeActive: 'bg-blue-100 text-blue-700',
+    emptyBg: 'bg-blue-50',
+    emptyIcon: 'text-blue-400',
+    cardBorder: 'border-l-blue-400',
+    selectedBorder: 'border-blue-500',
+    selectedBg: 'bg-blue-50',
   },
   {
-    mode: 'interview',
-    label: 'Interview',
-    description: 'Candidate screening & evaluation',
+    mode: 'interview' as Mode,
+    label: 'Interviews',
+    singular: 'Interview',
     icon: Briefcase,
-    color: 'bg-purple-500',
+    iconBg: 'bg-violet-500',
+    tabActiveText: 'text-violet-600',
+    tabActiveBorder: 'border-violet-600',
+    badge: 'bg-violet-100 text-violet-700',
+    badgeActive: 'bg-violet-100 text-violet-700',
+    emptyBg: 'bg-violet-50',
+    emptyIcon: 'text-violet-400',
+    cardBorder: 'border-l-violet-400',
+    selectedBorder: 'border-violet-500',
+    selectedBg: 'bg-violet-50',
   },
   {
-    mode: 'call',
-    label: 'Sales Call',
-    description: 'Client calls & sales pitches',
+    mode: 'call' as Mode,
+    label: 'Sales Calls',
+    singular: 'Sales Call',
     icon: Phone,
-    color: 'bg-emerald-500',
+    iconBg: 'bg-emerald-500',
+    tabActiveText: 'text-emerald-600',
+    tabActiveBorder: 'border-emerald-600',
+    badge: 'bg-emerald-100 text-emerald-700',
+    badgeActive: 'bg-emerald-100 text-emerald-700',
+    emptyBg: 'bg-emerald-50',
+    emptyIcon: 'text-emerald-400',
+    cardBorder: 'border-l-emerald-400',
+    selectedBorder: 'border-emerald-500',
+    selectedBg: 'bg-emerald-50',
   },
-];
+] as const;
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds) return '--';
+  if (!seconds) return '—';
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+  const timeStr = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
+  if (diffDays === 0) return `Today at ${timeStr}`;
+  if (diffDays === 1) return `Yesterday at ${timeStr}`;
+  if (diffDays < 7) {
+    return d.toLocaleDateString(undefined, { weekday: 'long' }) + ` at ${timeStr}`;
+  }
+  return d.toLocaleDateString(undefined, {
     month: 'short',
     day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    year: diffDays > 365 ? 'numeric' : undefined,
   });
 }
 
-export default function HomePage() {
+function getUserInitials(email: string): string {
+  return email.charAt(0).toUpperCase();
+}
+
+// ─── New Session Form ────────────────────────────────────────────────────────
+
+function NewSessionForm({ onClose }: { onClose?: () => void }) {
   const [title, setTitle] = useState('');
-  const [mode, setMode] = useState<'meeting' | 'call' | 'interview'>('meeting');
+  const [mode, setMode] = useState<Mode>('meeting');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Conversation[]>([]);
   const navigate = useNavigate();
-  const { user, signOut } = useAuthStore();
-
-  useEffect(() => {
-    if (!user) return;
-    listConversations()
-      .then(setSessions)
-      .catch((err) => console.error('[HomePage] Failed to load sessions:', err));
-  }, [user]);
+  const { user } = useAuthStore();
 
   const handleStart = async () => {
     if (!title.trim()) {
@@ -79,17 +131,11 @@ export default function HomePage() {
       return;
     }
     if (!user) return;
-
     setLoading(true);
     setError(null);
-
     try {
-      // Step 1: Create conversation row in Supabase
       const conversation = await createConversation(title.trim(), mode);
-
-      // Step 2: Get preferences and model registry for STT metadata
       const [prefs, models] = await Promise.all([getPreferences(), preferencesApi.getModels()]);
-
       const s = (prefs?.settings ?? {}) as Record<string, unknown>;
       const sttModel = (s.stt_model as string | undefined) ?? models.defaults.stt_model;
       const sttEntry = models.stt.find((m) => m.model === sttModel);
@@ -100,13 +146,8 @@ export default function HomePage() {
       if (s.min_silence_duration !== undefined) metadata.min_silence_duration = s.min_silence_duration;
       if (s.min_speech_duration !== undefined) metadata.min_speech_duration = s.min_speech_duration;
 
-      // Step 3: Create LiveKit room (agent dispatched automatically)
       const roomResponse = await createRoom({ metadata });
-
-      // Step 4: Save room name to Supabase
       await updateConversationRoom(conversation.id, roomResponse.room_name);
-
-      // Step 5: Generate participant token
       const tokenResponse = await generateToken({
         room_name: roomResponse.room_name,
         participant_identity: user.id,
@@ -119,9 +160,10 @@ export default function HomePage() {
       sessionStorage.setItem('conversationMode', mode);
       sessionStorage.setItem('conversationTitle', title.trim());
 
+      onClose?.();
       navigate(`/session/${conversation.id}`);
     } catch (err) {
-      console.error('[HomePage] Failed to start session:', err);
+      console.error('[NewSessionForm] Failed to start session:', err);
       setError(err instanceof Error ? err.message : 'Failed to start session');
     } finally {
       setLoading(false);
@@ -129,151 +171,683 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Dozi</h1>
-            <p className="text-sm text-slate-500">AI Sales Assistant</p>
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      {/* Gradient header */}
+      <div className="bg-gradient-to-br from-blue-600 to-indigo-700 px-5 py-4">
+        <div className="flex items-center gap-2 mb-0.5">
+          <div className="w-6 h-6 bg-white/20 rounded-lg flex items-center justify-center">
+            <Mic className="w-3.5 h-3.5 text-white" />
           </div>
-          <div className="flex items-center gap-4">
-            {user && (
-              <span className="text-sm text-slate-600">{user.email}</span>
+          <h2 className="text-sm font-bold text-white tracking-wide">New Session</h2>
+        </div>
+        <p className="text-xs text-blue-200 pl-8">Real-time AI insights as you talk</p>
+      </div>
+
+      <div className="p-5 space-y-4">
+        {/* Title */}
+        <div>
+          <label htmlFor="session-title" className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">
+            Session title
+          </label>
+          <input
+            id="session-title"
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleStart()}
+            placeholder="e.g., Q4 Strategy Meeting"
+            className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-slate-50 focus:bg-white placeholder:text-slate-300"
+            disabled={loading}
+          />
+        </div>
+
+        {/* Mode cards */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
+            Session type
+          </label>
+          <div className="grid grid-cols-3 gap-2">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const selected = mode === tab.mode;
+              return (
+                <button
+                  key={tab.mode}
+                  type="button"
+                  onClick={() => setMode(tab.mode)}
+                  disabled={loading}
+                  className={`p-3 rounded-xl border-2 text-center transition-all disabled:opacity-50 ${
+                    selected
+                      ? `${tab.selectedBorder} ${tab.selectedBg}`
+                      : 'border-slate-100 bg-slate-50 hover:border-slate-200'
+                  }`}
+                >
+                  <div
+                    className={`w-7 h-7 ${selected ? tab.iconBg : 'bg-slate-200'} rounded-lg flex items-center justify-center mx-auto mb-1.5 transition-colors`}
+                  >
+                    <Icon className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div
+                    className={`text-xs font-semibold leading-tight ${selected ? 'text-slate-800' : 'text-slate-400'}`}
+                  >
+                    {tab.singular}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {error && (
+          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+            <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+            <p className="text-xs text-red-600">{error}</p>
+          </div>
+        )}
+
+        <button
+          onClick={handleStart}
+          disabled={loading || !title.trim()}
+          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-200 disabled:to-slate-200 disabled:text-slate-400 text-white font-semibold py-2.5 px-4 rounded-xl transition-all text-sm flex items-center justify-center gap-2 shadow-sm hover:shadow-md disabled:shadow-none"
+        >
+          {loading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              <Plus className="w-4 h-4" />
+              Start Session
+            </>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Session Card ────────────────────────────────────────────────────────────
+
+function SessionCard({
+  session,
+  tab,
+  onDelete,
+  onOpen,
+}: {
+  session: Conversation;
+  tab: (typeof TABS)[number];
+  onDelete: (id: string) => Promise<void>;
+  onOpen: (session: Conversation) => void;
+}) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const Icon = tab.icon;
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleting(true);
+    try {
+      await onDelete(session.id);
+    } finally {
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.97 }}
+      transition={{ duration: 0.18 }}
+      onClick={() => !confirmDelete && onOpen(session)}
+      className={`group relative bg-white border border-slate-200 rounded-xl px-4 py-3.5 hover:border-slate-300 hover:shadow-sm transition-all cursor-pointer border-l-4 ${tab.cardBorder} select-none`}
+    >
+      <div className="flex items-center gap-3">
+        {/* Mode icon */}
+        <div
+          className={`w-9 h-9 ${tab.iconBg} rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm`}
+        >
+          <Icon className="w-4 h-4 text-white" />
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <span className="font-semibold text-sm text-slate-900 truncate">{session.title}</span>
+            <span
+              className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-md text-xs font-medium ${
+                session.status === 'active'
+                  ? 'bg-green-100 text-green-700'
+                  : session.status === 'completed'
+                    ? 'bg-slate-100 text-slate-500'
+                    : 'bg-amber-100 text-amber-700'
+              }`}
+            >
+              {session.status}
+            </span>
+          </div>
+          <div className="flex items-center gap-2.5 text-xs text-slate-400">
+            <span>{formatDate(session.created_at)}</span>
+            {session.duration_seconds !== null && (
+              <>
+                <span className="text-slate-200">·</span>
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  {formatDuration(session.duration_seconds)}
+                </span>
+              </>
             )}
+          </div>
+        </div>
+
+        {/* Actions area */}
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <AnimatePresence mode="wait">
+            {confirmDelete ? (
+              <motion.div
+                key="confirm"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                transition={{ duration: 0.12 }}
+                className="flex items-center gap-1.5"
+              >
+                <span className="text-xs text-slate-400 hidden sm:block">Delete?</span>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="px-2.5 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1"
+                >
+                  {deleting && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Delete
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(false);
+                  }}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="actions"
+                exit={{ opacity: 0 }}
+                className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setConfirmDelete(true);
+                  }}
+                  className="p-1.5 text-slate-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Delete session"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpen(session);
+                  }}
+                  className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="Open summary"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── Pagination ──────────────────────────────────────────────────────────────
+
+function Pagination({
+  page,
+  totalPages,
+  count,
+  pageSize,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  count: number;
+  pageSize: number;
+  onPageChange: (p: number) => void;
+}) {
+  const start = page * pageSize + 1;
+  const end = Math.min((page + 1) * pageSize, count);
+
+  // Build page number sequence with ellipsis
+  const pages: Array<number | 'ellipsis'> = [];
+  for (let i = 0; i < totalPages; i++) {
+    if (i === 0 || i === totalPages - 1 || Math.abs(i - page) <= 1) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== 'ellipsis') {
+      pages.push('ellipsis');
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4">
+      <p className="text-xs text-slate-400">
+        {start}–{end} of {count} sessions
+      </p>
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 0}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        {pages.map((p, idx) =>
+          p === 'ellipsis' ? (
+            <span key={`e-${idx}`} className="w-7 text-center text-xs text-slate-300 select-none">
+              …
+            </span>
+          ) : (
             <button
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`w-7 h-7 text-xs font-semibold rounded-lg transition-colors ${
+                p === page ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'
+              }`}
             >
-              <Settings className="w-4 h-4" />
-              Settings
+              {p + 1}
             </button>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
+          ),
+        )}
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= totalPages - 1}
+          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Home Page ───────────────────────────────────────────────────────────────
+
+export default function HomePage() {
+  const navigate = useNavigate();
+  const { user, signOut } = useAuthStore();
+
+  const [activeTab, setActiveTab] = useState<Mode>('meeting');
+  const [page, setPage] = useState(0);
+  const [sessions, setSessions] = useState<Conversation[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [tabCounts, setTabCounts] = useState<Record<Mode, number>>({ meeting: 0, interview: 0, call: 0 });
+  const [loadingSessions, setLoadingSessions] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [mobileFormOpen, setMobileFormOpen] = useState(false);
+
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE);
+
+  const loadCounts = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [m, i, c] = await Promise.all([
+        countConversationsByMode('meeting'),
+        countConversationsByMode('interview'),
+        countConversationsByMode('call'),
+      ]);
+      setTabCounts({ meeting: m, interview: i, call: c });
+    } catch (err) {
+      console.error('[HomePage] Failed to load counts:', err);
+    }
+  }, [user]);
+
+  const loadSessions = useCallback(async () => {
+    if (!user) return;
+    setLoadingSessions(true);
+    try {
+      const { data, count } = await listConversationsByMode(activeTab, PAGE_SIZE, page * PAGE_SIZE);
+      setSessions(data);
+      setTotalCount(count);
+    } catch (err) {
+      console.error('[HomePage] Failed to load sessions:', err);
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, [user, activeTab, page]);
+
+  useEffect(() => {
+    loadCounts();
+  }, [loadCounts]);
+
+  useEffect(() => {
+    loadSessions();
+  }, [loadSessions]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleTabChange = (mode: Mode) => {
+    setActiveTab(mode);
+    setPage(0);
+  };
+
+  const handleDelete = async (id: string) => {
+    await deleteConversation(id);
+    await loadCounts();
+    if (sessions.length === 1 && page > 0) {
+      setPage((p) => p - 1); // useEffect will reload
+    } else {
+      await loadSessions();
+    }
+  };
+
+  const handleOpen = (session: Conversation) => {
+    navigate(`/conversations/${session.id}`);
+  };
+
+  const activeTabConfig = TABS.find((t) => t.mode === activeTab)!;
+
+  return (
+    <div className="min-h-screen bg-slate-50">
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <header className="bg-white border-b border-slate-100 sticky top-0 z-40 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="h-14 flex items-center justify-between">
+            {/* Logo */}
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-sm">
+                <Mic className="w-4 h-4 text-white" />
+              </div>
+              <div className="leading-none">
+                <span className="text-base font-bold text-slate-900 tracking-tight">Dozi</span>
+                <span className="hidden sm:block text-xs text-slate-400">AI Sales Assistant</span>
+              </div>
+            </div>
+
+            {/* Right controls */}
+            <div className="flex items-center gap-1.5">
+              {/* Mobile new session button */}
+              <button
+                onClick={() => setMobileFormOpen(true)}
+                className="sm:hidden flex items-center gap-1.5 text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                New
+              </button>
+
+              {/* Settings */}
+              <button
+                onClick={() => navigate('/settings')}
+                className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors"
+                title="Settings"
+              >
+                <Settings className="w-[18px] h-[18px]" />
+              </button>
+
+              {/* User avatar + dropdown */}
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  className="flex items-center gap-2 pl-2 pr-2.5 py-1.5 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center ring-2 ring-white shadow-sm">
+                    <span className="text-xs font-bold text-white">
+                      {user?.email ? getUserInitials(user.email) : '?'}
+                    </span>
+                  </div>
+                  <span className="hidden md:block text-sm font-medium text-slate-600 max-w-[160px] truncate">
+                    {user?.email}
+                  </span>
+                </button>
+
+                <AnimatePresence>
+                  {userMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.95, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.95, y: -6 }}
+                      transition={{ duration: 0.1 }}
+                      className="absolute right-0 top-full mt-1.5 w-52 bg-white border border-slate-200 rounded-2xl shadow-xl shadow-slate-200/60 py-1.5 z-50 overflow-hidden"
+                    >
+                      <div className="px-4 py-2.5 border-b border-slate-100">
+                        <p className="text-xs text-slate-400">Signed in as</p>
+                        <p className="text-sm font-semibold text-slate-700 truncate mt-0.5">
+                          {user?.email}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          navigate('/settings');
+                          setUserMenuOpen(false);
+                        }}
+                        className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-slate-400" />
+                        Settings
+                      </button>
+                      <button
+                        onClick={() => {
+                          signOut();
+                          setUserMenuOpen(false);
+                        }}
+                        className="w-full text-left flex items-center gap-2.5 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign out
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 py-8 space-y-8">
-        {/* Start New Session */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Start New Session</h2>
-
-          <div className="bg-white rounded-xl border border-slate-200 p-6">
-            {/* Title input */}
-            <div className="mb-5">
-              <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-1.5">
-                Session Title
-              </label>
-              <input
-                id="title"
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="e.g., Sales call with Acme Corp"
-                className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
-                disabled={loading}
-              />
-            </div>
-
-            {/* Mode cards */}
-            <div className="mb-5">
-              <label className="block text-sm font-medium text-slate-700 mb-2">Mode</label>
-              <div className="grid grid-cols-3 gap-3">
-                {MODE_CARDS.map((card) => {
-                  const Icon = card.icon;
-                  const selected = mode === card.mode;
-                  return (
-                    <button
-                      key={card.mode}
-                      type="button"
-                      onClick={() => setMode(card.mode)}
-                      disabled={loading}
-                      className={`p-4 rounded-lg border-2 text-left transition-all ${
-                        selected
-                          ? 'border-blue-500 bg-blue-50'
-                          : 'border-slate-200 hover:border-slate-300 bg-white'
-                      } disabled:opacity-50`}
-                    >
-                      <div className={`w-8 h-8 ${card.color} rounded-lg flex items-center justify-center mb-2`}>
-                        <Icon className="w-4 h-4 text-white" />
-                      </div>
-                      <div className="font-medium text-sm text-slate-900">{card.label}</div>
-                      <div className="text-xs text-slate-500 mt-0.5">{card.description}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm text-red-600">{error}</p>
-              </div>
-            )}
-
-            <button
-              onClick={handleStart}
-              disabled={loading || !title.trim()}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
+      {/* ── Mobile: New Session Bottom Sheet ───────────────────────────────── */}
+      <AnimatePresence>
+        {mobileFormOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 sm:hidden bg-black/40 backdrop-blur-sm"
+            onClick={() => setMobileFormOpen(false)}
+          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="absolute bottom-0 left-0 right-0 bg-slate-50 rounded-t-3xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              {loading ? 'Starting...' : 'Start Session'}
-            </button>
-          </div>
-        </section>
+              <div className="flex items-center justify-between px-5 pt-5 pb-3">
+                <div className="w-10 h-1 bg-slate-200 rounded-full mx-auto absolute left-1/2 -translate-x-1/2 top-3" />
+                <h3 className="font-bold text-slate-900 text-base">Start a new session</h3>
+                <button
+                  onClick={() => setMobileFormOpen(false)}
+                  className="p-1.5 hover:bg-slate-100 rounded-xl transition-colors"
+                >
+                  <X className="w-4 h-4 text-slate-400" />
+                </button>
+              </div>
+              <div className="px-4 pb-6">
+                <NewSessionForm onClose={() => setMobileFormOpen(false)} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Recent Sessions */}
-        <section>
-          <h2 className="text-lg font-semibold text-slate-900 mb-4">Recent Sessions</h2>
+      {/* ── Main Layout ────────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="flex gap-6 items-start">
+          {/* ── Desktop Sidebar ─────────────────────────────────────────── */}
+          <aside className="hidden sm:flex flex-col gap-4 w-72 lg:w-80 flex-shrink-0">
+            <div className="sticky top-[57px]">
+              <NewSessionForm />
 
-          {sessions.length === 0 ? (
-            <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400">
-              <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p className="text-sm">No sessions yet</p>
-            </div>
-          ) : (
-            <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
-              {sessions.map((session) => (
-                <div key={session.id} className="px-5 py-4 flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm text-slate-900 truncate">
-                        {session.title}
-                      </span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        session.mode === 'meeting'
-                          ? 'bg-blue-100 text-blue-700'
-                          : session.mode === 'interview'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-emerald-100 text-emerald-700'
-                      }`}>
-                        {session.mode}
-                      </span>
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                        session.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : session.status === 'completed'
-                            ? 'bg-slate-100 text-slate-600'
-                            : 'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {session.status}
-                      </span>
-                    </div>
-                    <div className="text-xs text-slate-500 mt-1">
-                      {formatDate(session.created_at)} &middot; {formatDuration(session.duration_seconds)}
-                    </div>
-                  </div>
+              {/* Activity summary card */}
+              <div className="mt-4 bg-white border border-slate-200 rounded-2xl shadow-sm p-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">
+                  Your Activity
+                </p>
+                <div className="space-y-1.5">
+                  {TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.mode;
+                    return (
+                      <button
+                        key={tab.mode}
+                        onClick={() => handleTabChange(tab.mode)}
+                        className={`w-full flex items-center justify-between px-3 py-2 rounded-xl transition-all ${
+                          isActive ? 'bg-slate-100' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className={`w-7 h-7 ${tab.iconBg} rounded-lg flex items-center justify-center shadow-sm`}
+                          >
+                            <Icon className="w-3.5 h-3.5 text-white" />
+                          </div>
+                          <span className="text-sm font-medium text-slate-600">{tab.label}</span>
+                        </div>
+                        <span
+                          className={`text-xs font-bold px-2 py-0.5 rounded-full ${tab.badge}`}
+                        >
+                          {tabCounts[tab.mode]}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
             </div>
-          )}
-        </section>
-      </main>
+          </aside>
+
+          {/* ── Main Content ────────────────────────────────────────────── */}
+          <main className="flex-1 min-w-0">
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+              {/* Tab strip */}
+              <div className="border-b border-slate-100">
+                <div className="flex">
+                  {TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.mode;
+                    return (
+                      <button
+                        key={tab.mode}
+                        onClick={() => handleTabChange(tab.mode)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3.5 text-sm font-semibold border-b-2 transition-all ${
+                          isActive
+                            ? `${tab.tabActiveText} ${tab.tabActiveBorder}`
+                            : 'text-slate-400 border-transparent hover:text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span className="hidden sm:inline">{tab.label}</span>
+                        <span
+                          className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${
+                            isActive ? tab.badge : 'bg-slate-100 text-slate-400'
+                          }`}
+                        >
+                          {tabCounts[tab.mode]}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Session list */}
+              <div className="p-4 sm:p-5">
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={activeTab}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {loadingSessions ? (
+                      <div className="flex items-center justify-center py-16">
+                        <Loader2 className="w-6 h-6 text-slate-300 animate-spin" />
+                      </div>
+                    ) : sessions.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-center">
+                        <div
+                          className={`w-14 h-14 ${activeTabConfig.emptyBg} rounded-2xl flex items-center justify-center mb-4`}
+                        >
+                          <activeTabConfig.icon
+                            className={`w-7 h-7 ${activeTabConfig.emptyIcon}`}
+                          />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-600 mb-1">
+                          No {activeTabConfig.label.toLowerCase()} yet
+                        </h3>
+                        <p className="text-xs text-slate-400 max-w-[200px]">
+                          Start a new session to capture your first{' '}
+                          {activeTabConfig.singular.toLowerCase()}
+                        </p>
+                        <button
+                          onClick={() => setMobileFormOpen(true)}
+                          className="sm:hidden mt-4 flex items-center gap-1.5 text-xs font-semibold bg-blue-600 text-white px-4 py-2 rounded-xl"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          New session
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <AnimatePresence>
+                          {sessions.map((session) => (
+                            <SessionCard
+                              key={session.id}
+                              session={session}
+                              tab={activeTabConfig}
+                              onDelete={handleDelete}
+                              onOpen={handleOpen}
+                            />
+                          ))}
+                        </AnimatePresence>
+                      </div>
+                    )}
+
+                    {totalPages > 1 && !loadingSessions && (
+                      <Pagination
+                        page={page}
+                        totalPages={totalPages}
+                        count={totalCount}
+                        pageSize={PAGE_SIZE}
+                        onPageChange={setPage}
+                      />
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
