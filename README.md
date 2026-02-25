@@ -4,17 +4,18 @@ AI-powered sales conversation assistant that provides real-time insights during 
 
 ## Architecture
 
+Each service is independently deployed — there is no monolithic setup.
+
 ```
-Frontend → LiveKit Cloud ← Transcription Agent (STT via Deepgram/OpenAI)
-               ↓
-    Frontend polls for transcripts
-               ↓ (HTTP)
-    LLM Service (FastAPI) → Generates battle cards → Returns via HTTP
-               ↓
-    Supabase (auth + data)
+User's Browser
+  ├── Supabase (direct)          — auth, conversations, transcriptions, battle_cards, preferences
+  ├── LLM Service (FastAPI)      — model registry, LiveKit tokens, battlecard generation, prompts
+  └── LiveKit Cloud (WebSocket)  — audio streaming
+       └── Transcription Agent  — STT via Deepgram/OpenAI
+            └── LLM Service     — GET /models at startup
 ```
 
-The **LLM Service** is stateless — it handles battle card generation only. The **Transcription Agent** runs in LiveKit Cloud and handles all STT. The frontend wires them together.
+The **LLM Service** is stateless and has no database connection — it handles battle card generation, LiveKit room/token management, and serves the model registry. The **Transcription Agent** runs in LiveKit Cloud and handles all STT. **Supabase** is accessed directly from the frontend for all persistence.
 
 ## Tech Stack
 
@@ -98,45 +99,56 @@ Frontend runs at `http://localhost:5173`
 
 ```
 dozi/
-├── agents/              # LiveKit transcription agent (Deepgram/OpenAI)
-│   └── stt_models.yaml  # Supported STT models
-├── llm_service/         # FastAPI LLM service (self-contained)
-│   ├── llm_service/     # Python package
-│   │   ├── api/routes/  # battlecards, livekit, models
-│   │   ├── models/      # Schemas
-│   │   ├── services/    # Business logic
-│   │   └── prompts/     # Prompt loader
-│   ├── prompts/         # Prompt YAML files (per mode)
-│   ├── llm_models.yaml  # Supported LLM models
-│   ├── stt_models.yaml  # Supported STT models (served via API)
+├── agents/                     # LiveKit transcription agent (Deepgram/OpenAI)
+│   ├── transcription_agent.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── llm_service/                # FastAPI LLM service (self-contained)
+│   ├── llm_service/            # Python package
+│   │   ├── api/routes/         # battlecards, livekit, models
+│   │   ├── prompts/            # Prompt loader + models
+│   │   ├── services/           # Business logic
+│   │   ├── schemas.py          # All Pydantic schemas
+│   │   ├── auth.py             # JWT validation (Supabase JWKS)
+│   │   └── settings.py         # Env config + model registry
+│   ├── prompts/                # Prompt YAML files (call, meeting, interview)
+│   ├── models.yaml             # Single source of truth for all model names
 │   ├── Dockerfile
 │   └── docker-compose.yml
-├── frontend/            # React frontend (pnpm monorepo)
-│   ├── apps/web/        # Main web app
-│   └── packages/        # Shared packages (api-client, etc.)
-└── supabase/            # Database migrations
+├── frontend/                   # React frontend (pnpm monorepo)
+│   ├── apps/web/               # Main web app
+│   └── packages/api-client/   # @dozi/api-client
+└── supabase/                   # Database migrations
 ```
 
-## Docker Deployment (VPS)
+## Deployment
+
+Each service deploys independently:
+
+- **Frontend** — deploy `frontend/apps/web/` to Vercel, Netlify, or any static host
+- **LLM Service** — deploy as a Docker container on any VPS
 
 ```bash
+# LLM Service on VPS
 git clone <repo> /opt/dozi && cd /opt/dozi/llm_service
 cp .env.example .env
-# Fill in real values, set CORS_ORIGINS=https://your-vercel-domain.com
+# Fill in real values, set CORS_ORIGINS=https://your-frontend-domain.com
 
 docker compose up -d --build
 ```
 
 Update with `git pull && docker compose up -d --build` (from `llm_service/`).
 
+- **Transcription Agent** — deploy to LiveKit Cloud via `lk agent create`
+- **Supabase** — managed service, run `supabase db push` for migrations
+
 ## Development
 
-This project uses pre-commit hooks for code quality (Ruff + ty):
+This project uses pre-commit hooks for code quality (Ruff + ty + ESLint + tsc). Install from the repo root:
 
 ```bash
-cd llm_service
-uv sync --dev
-uv run pre-commit install
+uv sync --dev    # from llm_service/ for the uv environment
+pre-commit install
 ```
 
 ## License
