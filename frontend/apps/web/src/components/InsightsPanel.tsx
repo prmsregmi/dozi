@@ -2,7 +2,7 @@
  * Insights panel component - Display battle cards
  */
 
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { useInsightsStore } from '../store/insightsStore';
 import { formatAssistMode, getPriorityColor, getPriorityBgColor } from '@dozi/shared';
 import { type LucideIcon, Lightbulb, AlertCircle, MessageSquare, TrendingUp } from 'lucide-react';

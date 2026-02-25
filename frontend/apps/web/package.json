@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "lint": "ESLINT_USE_FLAT_CONFIG=false eslint . --ext ts,tsx",
+    "lint": "eslint .",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
@@ -27,7 +27,7 @@
 
     "@supabase/supabase-js": "^2.48.0",
 
-    "framer-motion": "^12.10.0",
+    "motion": "^12.10.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.575.0"
   },

@@ -2,6 +2,7 @@
   "name": "@dozi/frontend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "pnpm --filter @dozi/web dev",
     "build": "pnpm -r build",
@@ -9,9 +10,9 @@
     "type-check": "pnpm -r type-check"
   },
   "devDependencies": {
-    "@typescript-eslint/eslint-plugin": "^8.20.0",
-    "@typescript-eslint/parser": "^8.20.0",
-    "eslint": "^9.20.0",
+    "@eslint/js": "^10.0.0",
+    "typescript-eslint": "^8.20.0",
+    "eslint": "^10.0.0",
     "prettier": "^3.5.0",
     "typescript": "^5.7.0"
   },
