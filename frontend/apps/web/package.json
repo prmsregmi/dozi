@@ -15,8 +15,8 @@
     "@dozi/api-client": "workspace:*",
     "@dozi/ui": "workspace:*",
 
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "react-router-dom": "^7.1.3",
 
     "livekit-client": "^2.8.0",
@@ -32,8 +32,8 @@
     "lucide-react": "^0.575.0"
   },
   "devDependencies": {
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.11",
     "typescript": "^5.7.0",
