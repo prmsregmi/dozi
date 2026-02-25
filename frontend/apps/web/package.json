@@ -29,7 +29,7 @@
 
     "framer-motion": "^12.10.0",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.468.0"
+    "lucide-react": "^0.575.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.18",
