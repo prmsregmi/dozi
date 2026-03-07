@@ -37,11 +37,11 @@ cd llm_service && uv run ruff check --fix . && uv run ruff format . && uv run ty
 cd frontend && pnpm lint && pnpm type-check
 ```
 
-## Git
 
-- Conventional Commits: `feat:`, `fix:`, `chore:`, `docs:`, etc.
+## Git
+- Conventional Commits: `feat:`, `fix:`, `chore:`, `refactor:`, etc.
 - **Never add a co-author line to commit messages.**
-- Branch off `main`: `feat/...`, `fix/...`, `chore/...`
+- Before committing, always check the current branch. Commit to a relevant branch (`feat/...`, `fix/...`, `chore/...` off `main`) with a descriptive name, then push it to the remote.
 
 ## Coding Rules
 
