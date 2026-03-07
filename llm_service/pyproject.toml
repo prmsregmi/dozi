@@ -68,6 +68,10 @@ quote-style = "double"
 # Indent with spaces
 indent-style = "space"
 
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+
 [tool.ty]
 
 [tool.ty.rules]
