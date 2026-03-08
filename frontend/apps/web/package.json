@@ -29,7 +29,7 @@
 
     "motion": "^12.10.0",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.576.0"
+    "lucide-react": "^0.577.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.0",
