@@ -33,6 +33,7 @@ app.include_router(models_router)
 async def root() -> dict:
     """Root endpoint."""
     return {
+        "status": "ok",
         "name": settings.app_name,
         "version": settings.app_version,
         "description": "AI-powered conversation assistant",
