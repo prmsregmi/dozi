@@ -1,6 +1,6 @@
 # Dozi — Agent Instructions
 
-## Architecture (Mental Model)
+## Architecture
 
 Each service is independently deployed. Understanding data flow is critical to making correct decisions:
 
