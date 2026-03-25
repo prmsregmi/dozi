@@ -5,10 +5,12 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   python:
     name: Python (lint + typecheck)
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -39,6 +41,7 @@ jobs:
 
   frontend:
     name: Frontend (lint + typecheck)
+    if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
     defaults:
       run:
