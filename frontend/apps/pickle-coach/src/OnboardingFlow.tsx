@@ -118,11 +118,7 @@ export default function OnboardingFlow({ onComplete }: OnboardingFlowProps) {
           onClick={step === COMPLETE_STEP ? onComplete : goNext}
           className="w-full bg-slate-900 hover:bg-slate-800 text-white font-semibold py-3.5 rounded-2xl transition-colors text-sm"
         >
-          {step === WELCOME_STEP
-            ? 'Next'
-            : step === COMPLETE_STEP
-              ? "Let's get started"
-              : 'Next'}
+          {step === COMPLETE_STEP ? "Let's get started" : 'Next'}
         </button>
       </div>
     </div>

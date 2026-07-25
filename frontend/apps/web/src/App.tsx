@@ -6,8 +6,6 @@ import SettingsPage from './pages/SettingsPage';
 import ConversationSummaryPage from './pages/ConversationSummaryPage';
 import LoginPage from './pages/LoginPage';
 import AuthCallbackPage from './pages/AuthCallbackPage';
-import PickleCoachOnboardingPage from './pages/PickleCoachOnboardingPage';
-import CameraPlaceholderPage from './pages/CameraPlaceholderPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { supabase } from './lib/supabase';
 
@@ -21,8 +19,6 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/auth/callback" element={<AuthCallbackPage />} />
-        <Route path="/onboarding" element={<PickleCoachOnboardingPage />} />
-        <Route path="/camera" element={<CameraPlaceholderPage />} />
 
         <Route
           path="/"

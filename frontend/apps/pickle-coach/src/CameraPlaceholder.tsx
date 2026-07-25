@@ -1,6 +1,6 @@
 // Placeholder landing spot after onboarding completes. The real camera +
-// ML coaching view lives in a separate repository and will replace this page.
-export default function CameraPlaceholderPage() {
+// ML coaching view will replace this component once merged into that repo.
+export default function CameraPlaceholder() {
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-center px-6 gap-3">
       <span className="text-3xl">🎥</span>
