@@ -27,7 +27,7 @@
 
     "@supabase/supabase-js": "^2.48.0",
 
-    "motion": "^12.10.0",
+    "motion": "^13.0.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0"
   },
